@@ -1,0 +1,31 @@
+# Python specific
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.env.*
+*.venv
+env/
+venv/
+ENV/
+VENV/
+*.egg
+*.egg-info/
+dist/
+build/
+*.log
+
+# Flask specific
+instance/
+*.sqlite3
+*.db
+
+# IDE specific
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+Thumbs.db
