@@ -1,0 +1,139 @@
+from app.extensions import db
+from app.models.base import Base
+
+class Student(Base):
+    """学生信息模型"""
+    __tablename__ = 'students'
+    
+    # 关联到用户表
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), unique=True, nullable=False)
+    user = db.relationship('User', backref=db.backref('student_profile', uselist=False))
+    
+    # 基本信息 (基本信息部分)
+    name = db.Column(db.String(50), nullable=False, comment='学生姓名')
+    gender = db.Column(db.String(10), nullable=False, comment='性别')
+    ethnicity = db.Column(db.String(50), comment='民族')
+    phone = db.Column(db.String(20), comment='联系电话')
+    wechat_qq = db.Column(db.String(50), comment='微信/QQ')
+    school = db.Column(db.String(100), comment='毕业学校')
+    address = db.Column(db.String(200), comment='家庭住址')
+    candidate_number = db.Column(db.String(50), comment='准考证号')
+    id_card_number = db.Column(db.String(18), comment='身份证号')  # 新增字段
+    household_type = db.Column(db.String(20), comment='户籍类型') # 农村户口/城市户口
+    student_type = db.Column(db.String(20), comment='考生类型') # 应届生/复读生
+    
+    # 家长信息 (家长信息部分)
+    guardian1_name = db.Column(db.String(50), comment='第一联系人姓名')
+    guardian1_phone = db.Column(db.String(20), comment='第一联系人电话')
+    guardian2_name = db.Column(db.String(50), comment='第二联系人姓名')
+    guardian2_phone = db.Column(db.String(20), comment='第二联系人电话')
+    
+    # 身体情况 (身体情况部分)
+    left_eye_vision = db.Column(db.String(20), comment='左眼视力情况')
+    right_eye_vision = db.Column(db.String(20), comment='右眼视力情况')
+    color_vision = db.Column(db.String(20), comment='色觉情况') # 色盲/色弱
+    height = db.Column(db.String(10), comment='身高(CM)')
+    weight = db.Column(db.String(10), comment='体重(KG)')
+    
+    # 外语语种
+    foreign_language = db.Column(db.String(100), comment='外语语种')
+    
+    # 学科情况
+    is_discredited = db.Column(db.Boolean, default=False, comment='是否失信考生')
+    discredit_reason = db.Column(db.String(500), comment='失信原因')  # 新增字段
+    strong_subjects = db.Column(db.String(200), comment='优势科目')
+    weak_subjects = db.Column(db.String(200), comment='劣势科目')
+    
+    def to_dict(self):
+        """转换为字典表示"""
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'name': self.name,
+            'gender': self.gender,
+            'ethnicity': self.ethnicity,
+            'phone': self.phone,
+            'wechat_qq': self.wechat_qq,
+            'school': self.school,
+            'address': self.address,
+            'candidate_number': self.candidate_number,
+            'id_card_number': self.id_card_number,  # 新增字段
+            'household_type': self.household_type,
+            'student_type': self.student_type,
+            'guardian1_name': self.guardian1_name,
+            'guardian1_phone': self.guardian1_phone,
+            'guardian2_name': self.guardian2_name,
+            'guardian2_phone': self.guardian2_phone,
+            'left_eye_vision': self.left_eye_vision,
+            'right_eye_vision': self.right_eye_vision,
+            'color_vision': self.color_vision,
+            'height': self.height,
+            'weight': self.weight,
+            'foreign_language': self.foreign_language,
+            'is_discredited': self.is_discredited,
+            'discredit_reason': self.discredit_reason,  # 新增字段
+            'strong_subjects': self.strong_subjects,
+            'weak_subjects': self.weak_subjects,
+            'created_at': self.created_at,
+            'updated_at': self.updated_at
+        }
+    
+
+class AcademicRecord(Base):
+    """学生学业记录模型"""
+    __tablename__ = 'academic_records'
+    
+    # 关联到学生表
+    student_id = db.Column(db.Integer, db.ForeignKey('students.id'), nullable=False)
+    student = db.relationship('Student', backref=db.backref('academic_record', uselist=False))
+    
+    # 高考选科情况
+    selected_subjects = db.Column(db.String(100), comment='高考选科') # 存储多选科目，以逗号分隔
+    
+    # 高考成绩
+    gaokao_total_score = db.Column(db.String(20), comment='高考总分')
+    gaokao_ranking = db.Column(db.String(20), comment='高考位次')
+    standard_score = db.Column(db.String(20), comment='标准分数')
+    bonus_type = db.Column(db.String(50), comment='加分类型')
+    
+    # 分科目成绩
+    chinese_score = db.Column(db.String(20), comment='语文成绩')
+    math_score = db.Column(db.String(20), comment='数学成绩')
+    foreign_lang_score = db.Column(db.String(20), comment='外语成绩')
+    physics_score = db.Column(db.String(20), comment='物理成绩')
+    history_score = db.Column(db.String(20), comment='历史成绩')
+    chemistry_score = db.Column(db.String(20), comment='化学成绩')
+    biology_score = db.Column(db.String(20), comment='生物成绩')
+    geography_score = db.Column(db.String(20), comment='地理成绩')
+    politics_score = db.Column(db.String(20), comment='政治成绩')
+    
+    # 模考成绩
+    mock_exam1_score = db.Column(db.String(20), comment='第一次模考成绩')
+    mock_exam2_score = db.Column(db.String(20), comment='第二次模考成绩')
+    mock_exam3_score = db.Column(db.String(20), comment='第三次模考成绩')
+    
+    def to_dict(self):
+        """转换为字典表示"""
+        return {
+            'id': self.id,
+            'student_id': self.student_id,
+            'selected_subjects': self.selected_subjects,
+            'gaokao_total_score': self.gaokao_total_score,
+            'gaokao_ranking': self.gaokao_ranking,
+            'standard_score': self.standard_score,
+            'bonus_type': self.bonus_type,
+            'chinese_score': self.chinese_score,
+            'math_score': self.math_score,
+            'foreign_lang_score': self.foreign_lang_score,
+            'physics_score': self.physics_score,
+            'history_score': self.history_score,
+            'chemistry_score': self.chemistry_score,
+            'biology_score': self.biology_score,
+            'geography_score': self.geography_score,
+            'politics_score': self.politics_score,
+            'mock_exam1_score': self.mock_exam1_score,
+            'mock_exam2_score': self.mock_exam2_score,
+            'mock_exam3_score': self.mock_exam3_score,
+            'created_at': self.created_at,
+            'updated_at': self.updated_at
+        }

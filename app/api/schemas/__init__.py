@@ -1,6 +1,7 @@
  
 from marshmallow import Schema, fields, validate, validates, ValidationError
 
+
 class HealthSchema(Schema):
     """健康检查响应模式"""
     status = fields.String(required=True, description="系统状态")
@@ -17,6 +18,7 @@ class SendVerificationSchema(Schema):
 class VerifyCodeSchema(Schema):
     phone = fields.String(required=True, validate=validate.Regexp(r'^\d{11}$'), description="手机号码")
     code = fields.String(required=True, validate=validate.Regexp(r'^\d{6}$'), description="验证码")
+    planner_id = fields.Integer(required=True, description="规划师ID")
     
 # 学生注册模式
 class StudentRegisterSchema(Schema):
@@ -48,3 +50,10 @@ class UserSchema(Schema):
     status = fields.String(required=True, description="账号状态")
     created_at = fields.DateTime(required=True, description="创建时间")
     last_login_at = fields.DateTime(description="最后登录时间")
+
+
+class PaginationQuerySchema(Schema):
+    """分页查询参数"""
+    page = fields.Integer(missing=1, validate=validate.Range(min=1), description="页码")
+    per_page = fields.Integer(missing=10, validate=validate.Range(min=1, max=100), description="每页条数")
+    keyword = fields.String(description="搜索关键词", missing=None)

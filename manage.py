@@ -12,5 +12,10 @@ def create_db():
     db.create_all()
     print('数据库表已创建')
 
+@cli.command('celery_worker')
+def celery_worker():
+    """启动Celery worker"""
+    os.system('celery -A celery.celery worker --loglevel=info')
+
 if __name__ == '__main__':
     cli()

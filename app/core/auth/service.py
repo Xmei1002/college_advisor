@@ -1,10 +1,11 @@
+# app/core/auth/service.py
 from app.models.user import User
 from app.extensions import db
 from flask_jwt_extended import create_access_token, create_refresh_token
 
 class AuthService:
     @staticmethod
-    def register_student(username, password):
+    def register_student(username,password):
         """注册学生用户"""
         user = User(
             username=username,

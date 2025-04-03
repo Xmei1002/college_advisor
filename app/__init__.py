@@ -4,6 +4,7 @@ from app.extensions import db, migrate, jwt, socketio, cors, api_spec
 from app.utils.logger import setup_logger
 import logging
 from app.utils.response import APIResponse
+from app.extensions import init_celery
 
 def create_app():
     app = Flask(__name__)
@@ -22,6 +23,7 @@ def create_app():
     cors.init_app(app)
     socketio.init_app(app)
     api_spec.init_app(app)
+    init_celery(app)  # 添加这一行
 
     @jwt.expired_token_loader
     def expired_token_callback(jwt_header, jwt_payload):
@@ -48,9 +50,9 @@ def register_error_handlers(app):
     @app.errorhandler(404)
     def not_found(e):
         app.logger.warning(f"404 错误: {request.path}")
-        return {"success": False, "message": "Not found"}, 404
+        return APIResponse.error("Not Found", code=404)
     
     @app.errorhandler(500)
     def server_error(e):
         app.logger.error(f"500 错误: {str(e)}", exc_info=True)
-        return {"success": False, "message": "Server error"}, 500
+        return APIResponse.error("Internal Server Error", code=500)

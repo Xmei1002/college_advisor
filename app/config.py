@@ -38,7 +38,7 @@ class Config:
     # JWT配置
     JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY') or 'jwt-secret-string'
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(
-        minutes=int(os.environ.get('JWT_ACCESS_TOKEN_EXPIRES_MINUTES', 60))
+        days=int(os.environ.get('JWT_ACCESS_TOKEN_EXPIRES_DAYS', 7))
     )
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(
         days=int(os.environ.get('JWT_REFRESH_TOKEN_EXPIRES_DAYS', 30))
