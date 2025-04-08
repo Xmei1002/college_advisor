@@ -338,3 +338,19 @@ def get_my_planner():
         data=student.planner.to_dict(),
         message="获取成功"
     )
+
+# @student_bp.route('/analyzing_strategy', methods=['POST'])
+# @jwt_required()
+# @api_error_handler
+# def analyzing_strategy():
+#     """
+#     AI根据用户信息生成填报策略
+#     """
+#     planner_id = get_jwt_identity()
+#     planner = User.query.get_or_404(int(planner_id))
+
+#     if not planner.is_planner():
+#         return APIResponse.error("权限不足，仅限规划师操作", code=403)
+    
+
+    

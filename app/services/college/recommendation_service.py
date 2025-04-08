@@ -7,10 +7,11 @@ class RecommendationService:
     
     @staticmethod
     def get_colleges_by_category_and_group(student_score, subject_type, education_level, 
-                                          category_id, group_id, student_subjects,
-                                          area_ids=None, specialty_types=None, 
-                                          mode='smart', page=1, per_page=20,
-                                          tese_types=None, leixing_types=None, teshu_types=None):
+                                        category_id, group_id, student_subjects,
+                                        area_ids=None, specialty_types=None, 
+                                        mode='smart', page=1, per_page=20,
+                                        tese_types=None, leixing_types=None, teshu_types=None,
+                                        exclude_group_ids=None):
         """
         根据类别和志愿段获取院校专业组列表
         
@@ -28,6 +29,7 @@ class RecommendationService:
         :param tese_types: 学校特色筛选列表
         :param leixing_types: 学校类型筛选列表
         :param teshu_types: 特殊类型筛选列表
+        :param exclude_group_ids: 需要排除的院校专业组ID集合
         :return: 查询结果和分页信息
         """
         # 参数预处理，确保area_ids和specialty_types为列表
@@ -36,6 +38,7 @@ class RecommendationService:
         tese_types = tese_types or []
         leixing_types = leixing_types or []
         teshu_types = teshu_types or []
+        exclude_group_ids = exclude_group_ids or set()
         
         if not education_level:
             education_level = 11  # 默认本科
@@ -56,6 +59,10 @@ class RecommendationService:
             teshu_types=teshu_types
         )
         
+        # 1.1 过滤掉需要排除的院校专业组
+        if exclude_group_ids:
+            college_groups = [group for group in college_groups if group.cgid not in exclude_group_ids]
+        
         # 计算总记录数
         total = len(college_groups)
         
@@ -70,12 +77,17 @@ class RecommendationService:
         # 4. 获取专业组ID列表
         group_ids = [group.cgid for group in paginated_groups]
         
-        # 5. 根据专业组ID获取专业信息
+        # 5. 获取专业组历年数据
+        group_history = CollegeRepository.get_college_group_history_by_ids(
+            group_ids, subject_type, education_level
+        )
+        
+        # 6. 根据专业组ID获取专业信息
         specialties = CollegeRepository.get_specialties_by_group_ids(
             group_ids, subject_type, education_level, student_subjects
         )
         
-        # 6. 将专业信息按专业组分组
+        # 7. 将专业信息按专业组分组
         specialties_by_group = {}
         for specialty in specialties:
             if specialty.cgid not in specialties_by_group:
@@ -103,7 +115,7 @@ class RecommendationService:
                 key=lambda x: x['prediction_score']
             )
             
-        # 7. 组织最终结果
+        # 8. 组织最终结果
         result = []
         for group in paginated_groups:
             # 对于每个专业组，构造完整信息
@@ -112,7 +124,7 @@ class RecommendationService:
             )
             
             # 计算分类
-            category, group_name = ScoreClassifier.classify_by_score_diff(
+            category, group_name, recommendation_msg = ScoreClassifier.classify_by_score_diff(
                 group.score_diff, education_level, mode
             )
             
@@ -120,6 +132,26 @@ class RecommendationService:
             tese_text = CollegeRepository.convert_code_to_text(group.tese, 'tese')
             leixing_text = CollegeRepository.convert_code_to_text(group.leixing, 'leixing')
             teshu_text = CollegeRepository.convert_code_to_text(group.teshu, 'teshu')
+            
+            # 获取专业组历年数据
+            history_data_obj = group_history.get(group.cgid, {})
+            history_data_array = []
+            for year, data in history_data_obj.items():
+                if data:  # 确保数据存在
+                    # 创建一个新对象，将年份作为属性添加
+                    year_data = {
+                        "year": year,
+                        **data  # 展开原始数据
+                    }
+                    history_data_array.append(year_data)
+
+            # 可选：按年份排序（从新到旧）
+            history_data_array.sort(key=lambda x: x["year"], reverse=True)
+
+            # 计算扩建人数（2025年计划人数 - 2024年计划人数）
+            plan_2025 = group.csbplannum or 0
+            plan_2024 = history_data_obj.get('2024', {}).get('plan_number') or 0
+            plan_increase = plan_2025 - plan_2024
             
             group_info = {
                 'cgid': group.cgid,
@@ -140,6 +172,7 @@ class RecommendationService:
                 'min_tuition': group.minxuefei,
                 'max_tuition': group.maxxuefei,
                 'plan_number': group.csbplannum,  # 专业组的计划人数，来自投档线记录
+                'plan_increase': plan_increase,  # 添加扩建人数（25-24年计划人数差值）
                 'specialty_count': group_specialty_count,
                 'recommendation_level': category,
                 'recommendation_group': group_name,
@@ -151,11 +184,13 @@ class RecommendationService:
                     'di': group.di,
                     'zheng': group.zheng
                 },
-                'specialties': specialties_by_group.get(group.cgid, [])
+                'specialties': specialties_by_group.get(group.cgid, []),
+                'recommendation_msg': recommendation_msg,
+                'history': history_data_array  # 添加历年数据
             }
             result.append(group_info)
                 
-        # 8. 返回结果和分页信息
+        # 9. 返回结果和分页信息
         pagination = {
             'total': total,
             'page': page,

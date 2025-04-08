@@ -20,7 +20,6 @@ from app.models.zwh_xgk_fenshuxian_2025 import ZwhXgkFenshuxian2025
 
 # 其他ZWH表
 from app.models.zwh_xgk_fenzu_2025 import ZwhXgkFenzu2025
-from app.models.zwh_xgk_jihua_2025 import ZwhXgkJihua2025
 from app.models.zwh_xgk_picixian import ZwhXgkPicixian
 from app.models.zwh_xgk_yuanxiao_2025 import ZwhXgkYuanxiao2025
 from app.models.zwh_xgk_zhuanye_2025 import ZwhXgkZhuanye2025

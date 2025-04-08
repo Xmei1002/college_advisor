@@ -2,7 +2,7 @@
 from flask import current_app
 from sqlalchemy.exc import SQLAlchemyError
 from app.extensions import db
-from app.models.student_volunteer_plan import StudentVolunteerPlan, VolunteerCollege, VolunteerSpecialty
+from app.models.student_volunteer_plan import StudentVolunteerPlan, VolunteerCollege, VolunteerSpecialty, VolunteerCategoryAnalysis
 from app.services.college.recommendation_service import RecommendationService
 from app.services.ai.moonshot import MoonshotAI
 import json
@@ -181,6 +181,17 @@ class VolunteerPlanService:
         """
         plan = StudentVolunteerPlan.query.get_or_404(plan_id)
         result = plan.to_dict()
+        
+        # # 获取志愿类别分析信息
+        # analyses_query = VolunteerCategoryAnalysis.query.filter_by(plan_id=plan_id)
+        
+        # # 如果指定了类别ID，也按类别ID过滤分析
+        # if category_id is not None:
+        #     analyses_query = analyses_query.filter_by(category_id=category_id)
+            
+        # # 获取分析结果并添加到返回数据中
+        # category_analyses = analyses_query.all()
+        # result['category_analyses'] = [analysis.to_dict() for analysis in category_analyses]
         
         if include_details:
             # 构建基础查询
@@ -832,7 +843,6 @@ def process_batch(student_id, planner_id, category_id, group_id, plan_id=None):
     :param plan_id: 志愿方案ID，如果已有
     :return: 更新后的志愿方案ID和批次处理状态
     """
-    from app.services.college.recommendation_service import RecommendationService
     
     try:
         # 使用StudentDataService获取学生数据

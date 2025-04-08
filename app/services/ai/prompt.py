@@ -1,3 +1,31 @@
+ANALYZING_STRATEGY_PROMPT = """
+请根据我提供的用户信息，全面分析该学生在高考志愿填报时应该优先考虑院校还是专业。你的分析应包括：
+
+1. 角度分析两种策略对未来发展的影响：
+   - 学校品牌对就业、考研和职业发展的影响
+   - 专业选择对职业规划、行业进入门槛的影响
+   - 转专业难度与机会成本分析
+
+2. 结合学生个人情况进行针对性分析：
+   - 根据成绩、排名和院校/专业录取概率进行风险评估
+   - 根据学生兴趣特长、性格特点分析适配性
+   - 考虑家庭背景、地域偏好等外部因素的影响
+   - 分析职业目标与院校/专业选择的一致性
+
+3. 给出具体建议：
+   - 明确推荐院校优先还是专业优先的策略，并说明理由
+   - 提供具体的志愿填报建议和排序策略
+   - 给出备选方案和风险规避措施
+
+请提供详细的分析理由，并基于实际情况给出个性化、可操作的建议，帮助学生做出最适合自己的选择。
+
+## 学生信息
+{user_info}
+
+回复格式：
+   建议：院校优先/专业优先
+   理由：xxxxxx
+"""
 FILTER_COLLEGE_PROMPT = """
 你是一位资深的高考志愿填报规划专家，拥有丰富的招生政策和专业发展趋势分析经验。
 请根据我的个人档案和备选院校信息，从备选院校中帮我筛选出适合的大学和每个大学的专业，并返回JSON格式。
@@ -73,134 +101,41 @@ ANALYZING_CATEGORY_PROMPT = """
 你的解读应该既专业又实用，避免泛泛而谈，请针对我提供的具体院校和专业进行个性化分析。
 """
 
-FILTER_COLLEGE_PROMPT_COPY = """
-你是一个专业的专业的教育顾问，请根据我的个人档案和备选院校信息，从备选院校中帮我筛选出适合的大学和每个大学的专业，并返回JSON格式。
-理想状态应该是4个大学，每个大学6个专业。但是如果备选院校中的大学数量不足4个，或者每个大学的专业数量不足6个，就返回实际的数量即可；不要返回不存在的大学和专业。
-这是我的个人档案：
-```
-{user_info}
-```
-这是我的备选院校信息：
-```
-{college_info}
-```
-请严格按照以下 JSON 格式输出你的回复，确保键是具体的 cgid 值，值是对应的 spid 列表：
-{{
-  "cgid1": {{
-    "selection_reason": "选择cgid1的原因描述",
-    "spids": [
-      {{
-        "spid": "spid1",
-        "selection_reason": "选择spid1的原因描述"
-      }},
-      {{
-        "spid": "spid2",
-        "selection_reason": "选择spid2的原因描述"
-      }},
-      {{
-        "spid": "spid3",
-        "selection_reason": "选择spid3的原因描述"
-      }},
-      {{
-        "spid": "spid4",
-        "selection_reason": "选择spid4的原因描述"
-      }},
-      {{
-        "spid": "spid5",
-        "selection_reason": "选择spid5的原因描述"
-      }},
-      {{
-        "spid": "spid6",
-        "selection_reason": "选择spid6的原因描述"
-      }}
-    ]
-  }},
-  "cgid2": {{
-    "selection_reason": "选择cgid2的原因描述",
-    "spids": [
-      {{
-        "spid": "spid1",
-        "selection_reason": "选择spid1的原因描述"
-      }},
-      {{
-        "spid": "spid2",
-        "selection_reason": "选择spid2的原因描述"
-      }},
-      {{
-        "spid": "spid3",
-        "selection_reason": "选择spid3的原因描述"
-      }},
-      {{
-        "spid": "spid4",
-        "selection_reason": "选择spid4的原因描述"
-      }},
-      {{
-        "spid": "spid5",
-        "selection_reason": "选择spid5的原因描述"
-      }},
-      {{
-        "spid": "spid6",
-        "selection_reason": "选择spid6的原因描述"
-      }}
-    ]
-  }},
-  "cgid3": {{
-    "selection_reason": "选择cgid3的原因描述",
-    "spids": [
-      {{
-        "spid": "spid1",
-        "selection_reason": "选择spid1的原因描述"
-      }},
-      {{
-        "spid": "spid2",
-        "selection_reason": "选择spid2的原因描述"
-      }},
-      {{
-        "spid": "spid3",
-        "selection_reason": "选择spid3的原因描述"
-      }},
-      {{
-        "spid": "spid4",
-        "selection_reason": "选择spid4的原因描述"
-      }},
-      {{
-        "spid": "spid5",
-        "selection_reason": "选择spid5的原因描述"
-      }},
-      {{
-        "spid": "spid6",
-        "selection_reason": "选择spid6的原因描述"
-      }}
-    ]
-  }},
-  "cgid4": {{
-    "selection_reason": "选择cgid4的原因描述",
-    "spids": [
-      {{
-        "spid": "spid1",
-        "selection_reason": "选择spid1的原因描述"
-      }},
-      {{
-        "spid": "spid2",
-        "selection_reason": "选择spid2的原因描述"
-      }},
-      {{
-        "spid": "spid3",
-        "selection_reason": "选择spid3的原因描述"
-      }},
-      {{
-        "spid": "spid4",
-        "selection_reason": "选择spid4的原因描述"
-      }},
-      {{
-        "spid": "spid5",
-        "selection_reason": "选择spid5的原因描述"
-      }},
-      {{
-        "spid": "spid6",
-        "selection_reason": "选择spid6的原因描述"
-      }}
-    ]
-  }}
-}}
+ANALYZING_COLLEGE_PROMPT = """
+  你是一位专业的高考志愿规划师，现在需要你对以下高考志愿院校进行分析。
+  
+  ## 学生信息
+  {user_info}
+  
+  ## 院校信息
+  {college_json}
+  
+  请你从以下几个方面进行分析：
+  1. 院校概况：学校位置、类型、特色等基本信息
+  2. 录取可能性：根据学生分数和院校预测分数的差距，分析录取可能性
+  3. 适配度：根据学生的选科、学科优势和兴趣特长，分析学校是否适合学生
+  4. 发展前景：分析就读该校可能获得的升学、就业前景
+  5. 总体评价：给出综合建议
+  
+  请用简洁、客观、专业的语言进行分析，不超过500字。
+"""
+
+ANALYZING_SPECIALTY_PROMPT = """
+    你是一位专业的高考志愿规划师，现在需要你对以下高考志愿专业进行分析。
+    
+    ## 学生信息
+    {user_info}
+    
+    ## 专业信息(包含所在院校上下文)
+    {specialty_json}
+    
+    请你从以下几个方面进行分析：
+    1. 专业概况：专业定位、课程特点、培养目标等基本信息
+    2. 录取可能性：根据学生分数和专业预测分数的差距，分析录取可能性
+    3. 学科适配度：根据学生的选科和学科优势，分析该专业是否适合学生
+    4. 兴趣适配度：根据学生的兴趣特长，分析学生是否适合该专业
+    5. 就业前景：分析该专业的就业方向、就业率、薪资水平等
+    6. 总体评价：给出综合建议
+    
+    请用简洁、客观、专业的语言进行分析，不超过400字。
 """

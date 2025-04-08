@@ -9,6 +9,8 @@ from app.api.endpoints.planner import planner_bp  # 导入规划师蓝图
 from app.api.endpoints.recommendation import recommendation_bp
 from app.api.endpoints.base_data import base_data_bp
 from app.api.endpoints.volunteer_plan import volunteer_plan_bp
+from app.api.endpoints.volunteer_analysis import volunteer_analysis_bp  # 导入志愿分析蓝图
+from app.api.endpoints.tasks import tasks_bp  # 导入任务蓝图
 
 # 创建主API蓝图
 api_bp = Blueprint('api', __name__)
@@ -29,6 +31,7 @@ def register_blueprint(blueprint, url_prefix):
 
 # 注册蓝图
 register_blueprint(health_bp, '/health')
+register_blueprint(tasks_bp, '/tasks')
 register_blueprint(auth_bp, '/auth')
 register_blueprint(student_bp, '/students')  # 注册学生蓝图
 register_blueprint(preference_bp, '/preference')  # 志愿填报意向接口
@@ -36,4 +39,6 @@ register_blueprint(planner_bp, '/planners')  # 志愿填报意向接口
 register_blueprint(recommendation_bp, '/recommendation')
 register_blueprint(base_data_bp, '/base-data')
 register_blueprint(volunteer_plan_bp, '/volunteer-plans')
+register_blueprint(volunteer_analysis_bp, '/volunteer-analysis')  # 注册志愿分析蓝图
+
 

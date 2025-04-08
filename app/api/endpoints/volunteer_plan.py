@@ -66,7 +66,6 @@ def generate_ai_volunteer_plan(data):
     )
     
     return APIResponse.success(
-        data={'task_id': task.id},
         message="志愿方案生成任务已启动",
         code=202
     )

@@ -9,6 +9,7 @@ from app.models.zwh_xgk_fenshuxian_2023 import ZwhXgkFenshuxian2023
 from app.models.zwh_xgk_fenshuxian_2022 import ZwhXgkFenshuxian2022
 from app.models.zwh_xgk_fenshuxian_2021 import ZwhXgkFenshuxian2021
 from app.models.zwh_xgk_yuanxiao_2025 import ZwhXgkYuanxiao2025
+from app.models.zwh_xgk_picixian import ZwhXgkPicixian
 from app.models.zwh_areas import ZwhAreas
 from app.models.zwh_xgk_fenzu_2025 import ZwhXgkFenzu2025
 from app.core.recommendation.score_classification import ScoreClassifier
@@ -310,6 +311,125 @@ class CollegeRepository:
         return enriched_results
     
     @staticmethod
+    def get_college_group_history_by_ids(group_ids, subject_type, education_level):
+        """
+        批量获取专业组的历年投档线数据
+        
+        :param group_ids: 专业组ID列表
+        :param subject_type: 科别
+        :param education_level: 教育层次
+        :return: 按专业组ID组织的历年数据字典
+        """
+        if not group_ids:
+            return {}
+        
+        # 定义查询的年份
+        years = ["2024", "2023", "2022"]
+        
+        # 创建返回结果字典
+        result = {cgid: {} for cgid in group_ids}
+        
+        # 查询每个专业组的选科要求，获取各专业组的批次和科别
+        group_info = db.session.query(
+            ZwhXgkFenzu2025.cgid,
+            ZwhXgkFenzu2025.newbid,
+            ZwhXgkFenzu2025.newsuid
+        ).filter(
+            ZwhXgkFenzu2025.cgid.in_(group_ids)
+        ).all()
+        
+        # 构建批次和科别映射
+        group_bid_suid = {g.cgid: (g.newbid, g.newsuid) for g in group_info}
+        
+
+        province_lines = {}
+        
+        for year in years:
+            # 查询省定线
+            for cgid in group_ids:
+                if cgid in group_bid_suid:
+                    newbid, newsuid = group_bid_suid[cgid]
+                    
+                    # 查询省定线
+                    province_line_info = db.session.query(
+                        ZwhXgkPicixian.dscore
+                    ).filter(
+                        ZwhXgkPicixian.newbid == newbid,
+                        ZwhXgkPicixian.suid == newsuid,
+                        ZwhXgkPicixian.dyear == int(year)
+                    ).first()
+                    
+                    # 保存省定线
+                    province_score = int(province_line_info.dscore) if province_line_info and province_line_info.dscore is not None else None
+                    
+                    if cgid not in province_lines:
+                        province_lines[cgid] = {}
+                    
+                    province_lines[cgid][year] = province_score
+                    
+                    # 查询批次线
+                    line_info = db.session.query(
+                        ZwhXgkPicixian.dscore
+                    ).filter(
+                        ZwhXgkPicixian.newbid == newbid,
+                        ZwhXgkPicixian.suid == newsuid,
+                        ZwhXgkPicixian.dyear == int(year)
+                    ).first()
+                    
+                    # 保存批次线
+                    batch_score = int(line_info.dscore) if line_info and line_info.dscore is not None else None
+                    
+
+        
+        # 为每个年份和每个专业组查询投档线记录
+        for year in years:
+            # 确定对应年份的表
+            if year == "2024":
+                table = ZwhXgkFenshuxian2024
+            elif year == "2023":
+                table = ZwhXgkFenshuxian2023
+            elif year == "2022":
+                table = ZwhXgkFenshuxian2022
+            elif year == "2021":
+                table = ZwhXgkFenshuxian2021
+            else:
+                continue
+            
+            # 查询投档线记录
+            records = db.session.query(
+                table.cgid,
+                table.csbscore,  # 录取分数
+                table.csbplannum,  # 计划人数
+                table.weici  # 位次
+            ).filter(
+                table.cgid.in_(group_ids),
+                table.spid == 32767,  # 只查询投档线记录
+                table.suid == subject_type,
+                table.newbid == education_level
+            ).all()
+            
+            # 组织数据
+            for record in records:
+                cgid = record.cgid
+                provincial_line = province_lines.get(cgid, {}).get(year)
+                
+                # 计算线差（相对于省定线）
+                province_score_diff = None
+                if provincial_line is not None and record.csbscore is not None:
+                    province_score_diff = record.csbscore - provincial_line
+                
+                
+                result[cgid][year] = {
+                    'admission_score': int(record.csbscore) if record.csbscore is not None else None,
+                    'plan_number': record.csbplannum,
+                    'provincial_line': provincial_line,  # 省定线
+                    'province_score_diff': province_score_diff,  # 相对于省定线的线差
+                    'rank': record.weici
+                }
+        
+        return result
+    
+    @staticmethod
     def get_specialties_by_group_ids(cgids, subject_type, education_level, student_subjects=None):
         """
         根据专业组ID列表获取所有专业信息
@@ -350,6 +470,7 @@ class CollegeRepository:
         ).filter(
             ZwhXgkFenshuxian2025.cgid.in_(cgids),
             ZwhXgkFenshuxian2025.spid != 32767,  # 排除投档线记录
+            ZwhXgkFenshuxian2025.spid != 9325,   # 排除已启用字段
             ZwhXgkFenshuxian2025.suid == subject_type,
             ZwhXgkFenshuxian2025.newbid == education_level
         )
@@ -399,11 +520,41 @@ class CollegeRepository:
     def get_specialties_by_group_id(college_group_id):
         """
         根据专业组ID获取该组下的所有专业信息，每个专业包含2021-2024年的历史数据及2025年数据
-        
+        历史数据中增加省控线(dscore)和线差(score_diff)字段，所有分数以整数展示
+
         :param college_group_id: 专业组ID
         :return: 专业信息列表
         """
-        # 定义所有年份的表及其对应的年份
+        # 1. 首先查询专业组信息，获取批次和科别信息
+        group_info = db.session.query(
+            ZwhXgkFenzu2025.newbid,
+            ZwhXgkFenzu2025.newsuid,
+            ZwhXgkFenzu2025.newcid
+        ).filter(ZwhXgkFenzu2025.cgid == college_group_id).first()
+        
+        if not group_info:
+            return []
+        
+        newbid = group_info.newbid  # 批次
+        newsuid = group_info.newsuid  # 科别
+        
+        # 2. 查询各年份的批次线信息，仅查询一次每年的数据
+        batch_lines = {}
+        years = ["2021", "2022", "2023", "2024", "2025"]
+        
+        for year in years:
+            line_info = db.session.query(
+                ZwhXgkPicixian.dscore
+            ).filter(
+                ZwhXgkPicixian.newbid == newbid,
+                ZwhXgkPicixian.suid == newsuid,
+                ZwhXgkPicixian.dyear == int(year)
+            ).first()
+            
+            # 保存批次线，转换为整数
+            batch_lines[year] = int(line_info.dscore) if line_info and line_info.dscore is not None else None
+        
+        # 3. 定义所有年份的表及其对应的年份
         tables = [
             (ZwhXgkFenshuxian2025, "2025"),
             (ZwhXgkFenshuxian2024, "2024"),
@@ -411,8 +562,8 @@ class CollegeRepository:
             (ZwhXgkFenshuxian2022, "2022"),
             (ZwhXgkFenshuxian2021, "2021")
         ]
-        
-        # 构建每个表的查询，只查必要字段
+
+        # 4. 构建每个表的查询，只查必要字段
         queries = []
         for table, year in tables:
             query = db.session.query(
@@ -430,14 +581,14 @@ class CollegeRepository:
                 table.spid != 32767  # 排除投档线记录
             )
             queries.append(query)
-        
-        # 使用 UNION 合并所有查询
+
+        # 5. 使用 UNION 合并所有查询
         union_query = db.union(*queries)
-        
-        # 执行 UNION 查询并获取结果
+
+        # 6. 执行 UNION 查询并获取结果
         results = db.session.execute(union_query).fetchall()
-        
-        # 按 specialty_id 组织数据
+
+        # 7. 按 specialty_id 组织数据
         specialty_dict = {}
         for row in results:
             spid = row.specialty_id
@@ -446,34 +597,65 @@ class CollegeRepository:
                     "specialty_id": spid,
                     "specialty_name": row.specialty_name,
                     "specialty_code": row.specialty_code,
-                    "tuition": row.tuition if row.year == "2025" else None,  # 2025年的学费
-                    "prediction_score": row.prediction_score if row.year == "2025" else None,  # 2025年的预测分数
-                    "plan_number": row.plan_number if row.year == "2025" else None,  # 2025年的计划人数
-                    "history": {}
+                    "tuition": row.tuition if row.year == "2025" else None,
+                    "prediction_score": row.prediction_score if row.year == "2025" else None,
+                    "plan_number": row.plan_number if row.year == "2025" else None,
+                    "history": [],  # 使用数组而不是对象
+                    # 添加一个临时字典用于收集历史数据，后面会删除
+                    "_history_obj": {}  # 私有属性，用于临时存储
                 }
-            
-            # 填充历史数据（2021-2024）
-            if row.year != "2025":
-                specialty_dict[spid]["history"][row.year] = {
+
+            # 填充历史数据（2021-2024）并添加省控线和线差
+            year = row.year
+            if year != "2025":
+                # 获取当年的批次线
+                provincial_line = batch_lines.get(year)
+                
+                # 计算线差
+                score_diff = None
+                if provincial_line is not None and row.admission_score is not None:
+                    score_diff = int(row.admission_score - provincial_line)
+                
+                # 先存储到临时对象中，便于后续计算
+                specialty_dict[spid]["_history_obj"][year] = {
+                    "year": year,  # 添加年份字段
                     "plan_number": row.plan_number,
-                    "admission_score": row.admission_score,
-                    "rank": row.rank
+                    "admission_score": int(row.admission_score) if row.admission_score is not None else None,
+                    "rank": row.rank,
+                    "provincial_line": provincial_line,
+                    "score_diff": score_diff
                 }
             else:
                 # 确保 2025 年的数据覆盖初始值
                 specialty_dict[spid]["plan_number"] = row.plan_number
                 specialty_dict[spid]["tuition"] = row.tuition
                 specialty_dict[spid]["prediction_score"] = row.prediction_score
-        
-        # 计算计划人数变化并生成最终结果
+
+        # 8. 计算计划人数变化并生成最终结果
         specialties = []
         for specialty in specialty_dict.values():
-            plan_2025 = specialty["plan_number"] or 0  # 如果 None，按 0 处理
-            plan_2024 = specialty["history"].get("2024", {}).get("plan_number") or 0  # 如果无 2024 数据，按 0 处理
+            # 从临时存储中获取2024年数据用于计算
+            plan_2025 = specialty["plan_number"] or 0
+            plan_2024_data = specialty["_history_obj"].get("2024", {})
+            plan_2024 = plan_2024_data.get("plan_number") or 0
+            
+            # 计算计划人数变化
             specialty["plan_number_change"] = plan_2025 - plan_2024
+            
+            # 将临时对象中的历史数据转换为数组
+            for year_data in specialty["_history_obj"].values():
+                specialty["history"].append(year_data)
+            
+            # 按年份排序（可选，从新到旧）
+            specialty["history"].sort(key=lambda x: x["year"], reverse=True)
+            
+            # 删除临时对象
+            del specialty["_history_obj"]
+            
+            # 添加到结果列表
             specialties.append(specialty)
-        
-        # 按 specialty_id 排序（可选）
+
+        # 9. 按 specialty_id 排序（可选）
         specialties.sort(key=lambda x: x["specialty_id"])
-        
+
         return specialties

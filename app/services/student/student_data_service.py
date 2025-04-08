@@ -2,6 +2,7 @@
 from app.models.studentProfile import Student
 from app.models.zwh_areas import ZwhAreas
 from app.models.zwh_specialties_type import ZwhSpecialtiesType
+from app.models.zwh_xgk_picixian import ZwhXgkPicixian
 
 class StudentDataService:
     """处理学生数据提取和转换的服务类"""
@@ -39,7 +40,11 @@ class StudentDataService:
         if college_pref and college_pref.preferred_majors:
             specialty_types = StudentDataService._get_specialty_type_ids(college_pref.preferred_majors)
         
-        education_level = 11 
+        education_level = StudentDataService._determine_education_level(
+            student_score, 
+            subject_type, 
+        )
+        print('学生批次：', education_level)
         # 组织返回数据
         result = {
             'student_id': student.id,
@@ -164,6 +169,65 @@ class StudentDataService:
         
         return specialty_ids
     
+    @staticmethod
+    def analyzing_strategy_by_AI(student_id):
+        """
+        根据AI分析策略，生成学生个人档案
+        :param student_id: 学生ID
+        :return: 结果
+        """
+        # 获取学生完整数据
+        student = Student.query.get_or_404(student_id)
+        academic_record = student.academic_record
+
+    @staticmethod
+    def _determine_education_level(student_score, subject_type, province_id=None):
+        """
+        根据学生分数和科别判断适合的教育层次
+        
+        :param student_score: 学生高考分数
+        :param subject_type: 科别(1-文科/历史组，2-理科/物理组)
+        :param province_id: 省份ID
+        :return: 教育层次(11-本科，12-专科)
+        """
+        
+        # 默认为本科
+        default_level = 11
+        
+        try:
+            # 查询最新年份的数据
+            latest_year = '2025'
+            
+            if not latest_year:
+                return default_level
+            
+            # 构建查询条件
+            query = ZwhXgkPicixian.query.filter(
+                ZwhXgkPicixian.dyear == latest_year,
+                ZwhXgkPicixian.suid == subject_type,
+                ZwhXgkPicixian.newbid == 11  # 查询本科批次线
+            )
+            
+            # 如果有省份信息，添加省份筛选
+            if province_id:
+                query = query.filter(ZwhXgkPicixian.aid == province_id)
+            
+            # 获取本科批次线
+            cutoff_record = query.order_by(ZwhXgkPicixian.dscore.desc()).first()
+            
+            # 如果找不到适用的分数线记录，使用默认值
+            if not cutoff_record or not cutoff_record.dscore:
+                return default_level
+            
+            # 比较学生分数与批次线
+            if student_score >= float(cutoff_record.dscore):
+                return 11  # 本科
+            else:
+                return 12  # 专科
+                
+        except Exception as e:
+            # 出现异常时记录日志并返回默认值
+            return default_level
 
     @staticmethod
     def generate_student_profile_text(student_id):

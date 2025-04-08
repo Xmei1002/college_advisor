@@ -20,6 +20,7 @@ def init_celery(app=None):
         celery.conf.update(
             broker_url=app.config["CELERY_BROKER_URL"],
             result_backend=app.config["CELERY_RESULT_BACKEND"],
+            result_expires=app.config.get("CELERY_RESULT_EXPIRES", 60 * 60 * 24)  # 默认1天过期
         )
     
     class ContextTask(celery.Task):

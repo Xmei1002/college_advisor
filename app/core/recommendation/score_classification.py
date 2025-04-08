@@ -43,7 +43,7 @@ class ScoreClassifier:
         :param score_diff: 分差（预测分 - 学生分）
         :param education_level: 教育层次（11-本科，12-专科）
         :param mode: 分类模式（'smart'智能模式，'professional'专业模式，'free'自由模式）
-        :return: 类别和分组信息
+        :return: 类别、分组信息和推荐消息的元组
         """
         if education_level == 12:  # 专科
             if mode == ScoreClassifier.MODE_PROFESSIONAL:
@@ -59,7 +59,7 @@ class ScoreClassifier:
                 return ScoreClassifier._classify_undergraduate_free(score_diff)
             else:  # 默认智能模式
                 return ScoreClassifier._classify_undergraduate(score_diff)
-
+            
     @staticmethod
     def get_score_diff_range(category_id, group_id, education_level, mode='smart'):
         """
@@ -127,7 +127,7 @@ class ScoreClassifier:
                 scan_range = range(-120, 241, step)
         
         for diff in scan_range:
-            cat, grp = classify_func(diff)
+            cat, grp, _ = classify_func(diff)
             if cat == category and grp == group_name:
                 if min_diff is None:
                     min_diff = diff
@@ -143,83 +143,203 @@ class ScoreClassifier:
     def _classify_undergraduate(score_diff):
         """智能模式-本科分类逻辑"""
         # 冲（12~0）
-        if 0 <= score_diff <= 12:
+        if 0 < score_diff <= 12:
             category = "chasing"
-            if 0 <= score_diff <= 3:
+            if 0 < score_diff <= 3:
                 group = "冲-志愿13-16"
+                recommendation_msg = {
+                    'msg': '比较冒险，可以考虑冲一冲，建议放在 13 ~ 16 志愿',
+                    'msg2': '比较冒险，可以考虑冲一冲',
+                    'jy': '冲'
+                }
             elif 3 < score_diff <= 6:
                 group = "冲-志愿9-12"
+                recommendation_msg = {
+                    'msg': '比较冒险，可以考虑冲一冲,建议放在 9 ~ 12志愿',
+                    'msg2': '比较冒险，可以考虑冲一冲',
+                    'jy': '冲'
+                }
             elif 6 < score_diff <= 9:
                 group = "冲-志愿5-8"
+                recommendation_msg = {
+                    'msg': '比较冒险，可以考虑冲一冲，建议放在 5 ~ 8 志愿',
+                    'msg2': '比较冒险，可以考虑冲一冲',
+                    'jy': '冲'
+                }
             else:
                 group = "冲-志愿1-4"
+                recommendation_msg = {
+                    'msg': '比较冒险，可以考虑冲一冲,建议放在 1 ~ 4 志愿',
+                    'msg2': '比较冒险，可以考虑冲一冲',
+                    'jy': '冲'
+                }
         # 稳（0~-20）
-        elif -20 <= score_diff < 0:
+        elif -20 < score_diff <= 0:
             category = "stable"
-            if -5 <= score_diff < 0:
+            if -5 < score_diff <= 0:
                 group = "稳-志愿17-20"
-            elif -10 <= score_diff < -5:
+                recommendation_msg = {
+                    'msg': '有希望，可以考虑稳一稳，建议放在 17 ~ 20 志愿',
+                    'msg2': '有希望，可以考虑稳一稳',
+                    'jy': '稳'
+                }
+            elif -10 < score_diff <= -5:
                 group = "稳-志愿21-24"
-            elif -15 <= score_diff < -10:
+                recommendation_msg = {
+                    'msg': '有希望，可以考虑稳一稳，建议放在 21 ~ 24志愿',
+                    'msg2': '有希望，可以考虑稳一稳',
+                    'jy': '稳'
+                }
+            elif -15 < score_diff <= -10:
                 group = "稳-志愿25-28"
+                recommendation_msg = {
+                    'msg': '有希望，可以考虑稳一稳，建议放在 24 ~ 28 志愿',
+                    'msg2': '有希望，可以考虑稳一稳',
+                    'jy': '稳'
+                }
             else:
                 group = "稳-志愿29-32"
+                recommendation_msg = {
+                    'msg': '很有希望，可以考虑稳一稳，建议放在 29 ~ 32志愿',
+                    'msg2': '很有希望，可以考虑稳一稳',
+                    'jy': '稳'
+                }
         # 保（-20~-40）
-        elif -40 <= score_diff < -20:
+        elif -40 < score_diff <= -20:
             category = "safe"
-            if -25 <= score_diff < -20:
+            if -25 < score_diff <= -20:
                 group = "保-志愿33-36"
-            elif -30 <= score_diff < -25:
+                recommendation_msg = {
+                    'msg': '很有希望，可以保一保,建议放在 33 ~ 36 志愿',
+                    'msg2': '很有希望，可以保一保',
+                    'jy': '保'
+                }
+            elif -30 < score_diff <= -25:
                 group = "保-志愿37-40"
-            elif -35 <= score_diff < -30:
+                recommendation_msg = {
+                    'msg': '很有希望，可以保一保,建议放在 37 ~ 40 志愿',
+                    'msg2': '很有希望，可以保一保',
+                    'jy': '保'
+                }
+            elif -35 < score_diff <= -30:
                 group = "保-志愿41-44"
+                recommendation_msg = {
+                    'msg': '很有希望，可以保一保,建议放在 41 ~ 44 志愿',
+                    'msg2': '很有希望，可以保一保',
+                    'jy': '保'
+                }
             else:
                 group = "保-志愿45-48"
+                recommendation_msg = {
+                    'msg': '很有希望，可以保一保,建议放在 45 ~ 48 志愿',
+                    'msg2': '很有希望，可以保一保',
+                    'jy': '保'
+                }
         else:
-            return None, None  # 不在范围内
+            return None, None, None  # 不在范围内
         
-        return category, group
-    
+        return category, group, recommendation_msg
+
     @staticmethod
     def _classify_vocational(score_diff):
         """智能模式-专科分类逻辑"""
         # 冲（20~0）
-        if 0 <= score_diff <= 20:
+        if 0 < score_diff <= 20:
             category = "chasing"
-            if 0 <= score_diff <= 5:
+            if 0 < score_diff <= 5:
                 group = "冲-志愿13-16"
+                recommendation_msg = {
+                    'msg': '比较冒险，可以考虑冲一冲，建议放在 13 ~ 16 志愿',
+                    'msg2': '比较冒险，可以考虑冲一冲',
+                    'jy': '冲'
+                }
             elif 5 < score_diff <= 10:
                 group = "冲-志愿5-8"
+                recommendation_msg = {
+                    'msg': '比较冒险，可以考虑冲一冲，建议放在 5 ~ 8 志愿',
+                    'msg2': '比较冒险，可以考虑冲一冲',
+                    'jy': '冲'
+                }
             elif 10 < score_diff <= 15:
                 group = "冲-志愿5-8"
+                recommendation_msg = {
+                    'msg': '比较冒险，可以考虑冲一冲，建议放在 5 ~ 8 志愿',
+                    'msg2': '比较冒险，可以考虑冲一冲',
+                    'jy': '冲'
+                }
             else:
                 group = "冲-志愿1-4"
+                recommendation_msg = {
+                    'msg': '比较冒险，可以考虑冲一冲,建议放在 1 ~ 4 志愿',
+                    'msg2': '比较冒险，可以考虑冲一冲',
+                    'jy': '冲'
+                }
         # 稳（0~-40）
-        elif -40 <= score_diff < 0:
+        elif -40 < score_diff <= 0:
             category = "stable"
-            if -10 <= score_diff < 0:
+            if -10 < score_diff <= 0:
                 group = "稳-志愿17-20"
-            elif -20 <= score_diff < -10:
+                recommendation_msg = {
+                    'msg': '有希望，可以考虑稳一稳，建议放在 17 ~ 20 志愿',
+                    'msg2': '有希望，可以考虑稳一稳',
+                    'jy': '稳'
+                }
+            elif -20 < score_diff <= -10:
                 group = "稳-志愿21-24"
-            elif -30 <= score_diff < -20:
+                recommendation_msg = {
+                    'msg': '有希望，可以考虑稳一稳，建议放在 21 ~ 24志愿',
+                    'msg2': '有希望，可以考虑稳一稳',
+                    'jy': '稳'
+                }
+            elif -30 < score_diff <= -20:
                 group = "稳-志愿25-28"
+                recommendation_msg = {
+                    'msg': '有希望，可以考虑稳一稳，建议放在 24 ~ 28 志愿',
+                    'msg2': '有希望，可以考虑稳一稳',
+                    'jy': '稳'
+                }
             else:
                 group = "稳-志愿29-32"
+                recommendation_msg = {
+                    'msg': '很有希望，可以考虑稳一稳，建议放在 29 ~ 32志愿',
+                    'msg2': '很有希望，可以考虑稳一稳',
+                    'jy': '稳'
+                }
         # 保（-40~-100）
-        elif -100 <= score_diff < -40:
+        elif -100 < score_diff <= -40:
             category = "safe"
-            if -55 <= score_diff < -40:
+            if -55 < score_diff <= -40:
                 group = "保-志愿33-36"
-            elif -70 <= score_diff < -55:
+                recommendation_msg = {
+                    'msg': '很有希望，可以保一保,建议放在 33 ~ 36 志愿',
+                    'msg2': '很有希望，可以保一保',
+                    'jy': '保'
+                }
+            elif -70 < score_diff <= -55:
                 group = "保-志愿37-40"
-            elif -85 <= score_diff < -70:
+                recommendation_msg = {
+                    'msg': '很有希望，可以保一保,建议放在 37 ~ 40 志愿',
+                    'msg2': '很有希望，可以保一保',
+                    'jy': '保'
+                }
+            elif -85 < score_diff <= -70:
                 group = "保-志愿41-44"
+                recommendation_msg = {
+                    'msg': '很有希望，可以保一保,建议放在 41 ~ 44 志愿',
+                    'msg2': '很有希望，可以保一保',
+                    'jy': '保'
+                }
             else:
                 group = "保-志愿45-48"
+                recommendation_msg = {
+                    'msg': '很有希望，可以保一保,建议放在 45 ~ 48 志愿',
+                    'msg2': '很有希望，可以保一保',
+                    'jy': '保'
+                }
         else:
-            return None, None  # 不在范围内
+            return None, None, None  # 不在范围内
         
-        return category, group
+        return category, group, recommendation_msg
     
     @staticmethod
     def _classify_undergraduate_professional(score_diff):
@@ -260,7 +380,7 @@ class ScoreClassifier:
         else:
             return None, None  # 不在范围内
         
-        return category, group
+        return category, group,
     
     @staticmethod
     def _classify_vocational_professional(score_diff):

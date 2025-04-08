@@ -44,8 +44,8 @@ class StudentVolunteerPlan(Base):
             'generation_progress': self.generation_progress,
             'generation_message': self.generation_message,
             'user_data_hash': self.user_data_hash,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+            'created_at': self.created_at,
+            'updated_at': self.updated_at
         }
     
 class VolunteerCollege(Base):
@@ -117,8 +117,8 @@ class VolunteerCollege(Base):
             'teshu_text': self.teshu_text,
             'nature': self.nature,
             'uncode': self.uncode,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+            'created_at': self.created_at,
+            'updated_at': self.updated_at
         }
         
         if include_specialties:
@@ -166,6 +166,48 @@ class VolunteerSpecialty(Base):
             'remarks': self.remarks,
             'ai_analysis': self.ai_analysis,
             'fenshuxian_id': self.fenshuxian_id,  # 添加到返回数据中
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+            'created_at': self.created_at,
+            'updated_at': self.updated_at
+        }
+    
+
+class VolunteerCategoryAnalysis(Base):
+    """志愿类别分析表"""
+    __tablename__ = 'volunteer_category_analyses'
+    
+    # 状态常量
+    STATUS_PENDING = 'pending'       # 等待分析
+    STATUS_PROCESSING = 'processing' # 正在分析
+    STATUS_COMPLETED = 'completed'   # 分析完成
+    STATUS_FAILED = 'failed'         # 分析失败
+    
+    # 基础字段继承自Base模型(id, created_at, updated_at)
+    plan_id = db.Column(db.Integer, db.ForeignKey('student_volunteer_plans.id'), nullable=False, comment='志愿方案ID')
+    category_id = db.Column(db.Integer, nullable=False, comment='类别ID(1:冲, 2:稳, 3:保)')
+    analysis_content = db.Column(db.Text, comment='AI分析内容')
+    status = db.Column(db.String(20), default=STATUS_PENDING, comment='分析状态')
+    analyzed_at = db.Column(db.DateTime, comment='分析完成时间')
+    error_message = db.Column(db.Text, comment='错误信息，当状态为failed时有值')
+    
+    # 关系
+    plan = db.relationship('StudentVolunteerPlan', backref=db.backref('category_analyses', lazy='dynamic'))
+    
+    # 索引与约束
+    __table_args__ = (
+        db.Index('idx_plan_category', 'plan_id', 'category_id'),
+        db.UniqueConstraint('plan_id', 'category_id', name='unique_plan_category'),
+    )
+    
+    def to_dict(self):
+        """转换为字典表示"""
+        return {
+            'id': self.id,
+            'plan_id': self.plan_id,
+            'category_id': self.category_id,
+            'analysis_content': self.analysis_content,
+            'status': self.status,
+            'error_message': self.error_message,
+            'analyzed_at': self.analyzed_at,
+            'created_at': self.created_at,
+            'updated_at': self.updated_at
         }

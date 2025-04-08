@@ -79,3 +79,15 @@ class CategoryFilterSchemaByStuedntID(Schema):
     mode = fields.String(validate=validate.OneOf(['smart', 'professional', 'free']), description="分类模式：smart-智能，professional-专业，free-自由")
     page = fields.Integer(validate=validate.Range(min=1), description="页码，从1开始")
     per_page = fields.Integer(validate=validate.Range(min=1, max=100), description="每页记录数")
+
+
+class SpecialtiesRequestSchema(Schema):
+    """专业列表请求参数模式"""
+    volunteer_college_id = fields.Integer(
+        required=False,
+        description="方案院校的ID，用于获取当前已选择的专业"
+    )
+    college_group_id = fields.Integer(
+        required=False,
+        description="专业组ID，college_group_id 用于获取所有专业"
+    )
