@@ -5,11 +5,12 @@ from flask_jwt_extended import create_access_token, create_refresh_token
 
 class AuthService:
     @staticmethod
-    def register_student(username,password):
+    def register_student(username,password,consultation_status):
         """注册学生用户"""
         user = User(
             username=username,
-            user_type=User.USER_TYPE_STUDENT
+            user_type=User.USER_TYPE_STUDENT,
+            consultation_status=consultation_status
         )
         user.password = password
         user.save()

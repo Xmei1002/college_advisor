@@ -11,7 +11,7 @@ class RecommendationService:
                                         area_ids=None, specialty_types=None, 
                                         mode='smart', page=1, per_page=20,
                                         tese_types=None, leixing_types=None, teshu_types=None,
-                                        exclude_group_ids=None):
+                                        tuition_ranges=None, exclude_group_ids=None):
         """
         根据类别和志愿段获取院校专业组列表
         
@@ -29,6 +29,7 @@ class RecommendationService:
         :param tese_types: 学校特色筛选列表
         :param leixing_types: 学校类型筛选列表
         :param teshu_types: 特殊类型筛选列表
+        :param tuition_ranges: 学费范围列表，格式为[(min1, max1), (min2, max2), ...]
         :param exclude_group_ids: 需要排除的院校专业组ID集合
         :return: 查询结果和分页信息
         """
@@ -39,10 +40,14 @@ class RecommendationService:
         leixing_types = leixing_types or []
         teshu_types = teshu_types or []
         exclude_group_ids = exclude_group_ids or set()
+        tuition_ranges = tuition_ranges or []
+        education_level = education_level or 11  # 默认本科
+
+        print(f"获取院校专业组列表: 学生分数={student_score}, 科别={subject_type}, 学历层次={education_level}, "
+              f"类别ID={category_id}, 志愿段ID={group_id}, 学生选科={student_subjects}, "
+              f"地区ID={area_ids}, 专业类型={specialty_types}, 模式={mode}, "
+              f"每页记录数={per_page}, 学费范围={tuition_ranges}, 排除的专业组ID={exclude_group_ids}")
         
-        if not education_level:
-            education_level = 11  # 默认本科
-            
         # 1. 获取所有符合条件的专业组
         college_groups = CollegeRepository.get_college_groups_by_category(
             student_score=student_score,
@@ -56,7 +61,8 @@ class RecommendationService:
             mode=mode,
             tese_types=tese_types,
             leixing_types=leixing_types,
-            teshu_types=teshu_types
+            teshu_types=teshu_types,
+            tuition_ranges=tuition_ranges  # 添加学费范围参数
         )
         
         # 1.1 过滤掉需要排除的院校专业组
@@ -160,7 +166,7 @@ class RecommendationService:
                 'uncode': group.uncode,
                 'school_type': group.leixing,
                 'school_type_text': leixing_text[0] if leixing_text else '',
-                'school_nature': group.xingzhi,
+                'school_nature': group.xingzhi == 1 and '公办' or '民办',
                 'tese': group.tese,
                 'tese_text': tese_text,
                 'teshu': group.teshu,
@@ -186,7 +192,7 @@ class RecommendationService:
                 },
                 'specialties': specialties_by_group.get(group.cgid, []),
                 'recommendation_msg': recommendation_msg,
-                'history': history_data_array  # 添加历年数据
+                'history': history_data_array # 添加历年数据
             }
             result.append(group_info)
                 

@@ -425,7 +425,9 @@ class VolunteerPlanService:
             raise
         
     @staticmethod
-    def create_empty_plan(student_id, planner_id, remarks, user_data_hash=None):
+    def create_empty_plan(student_id, planner_id, remarks, user_data_hash=None, 
+                        generation_status='pending', generation_progress=0, 
+                        generation_message=None,student_data_snapshot=None):
         """
         创建空的志愿方案
         
@@ -433,6 +435,9 @@ class VolunteerPlanService:
         :param planner_id: 规划师ID
         :param remarks: 备注说明
         :param user_data_hash: 用户数据哈希
+        :param generation_status: 生成状态
+        :param generation_progress: 生成进度
+        :param generation_message: 生成消息
         :return: 创建的志愿方案
         """
         try:
@@ -458,7 +463,11 @@ class VolunteerPlanService:
                 version=new_version,
                 is_current=True,
                 remarks=remarks,
-                user_data_hash=user_data_hash  # 添加用户数据哈希
+                user_data_hash=user_data_hash,
+                generation_status=generation_status,
+                generation_progress=generation_progress,
+                generation_message=generation_message or "开始生成志愿方案",
+                student_data_snapshot=student_data_snapshot
             )
             
             db.session.add(plan)
@@ -594,7 +603,7 @@ class VolunteerPlanService:
         :return: 批量添加结果
         """
         try:
-            current_app.logger.info(f"批量添加院校志愿: {plan_id}, {len(colleges_data)} 个院校")
+            current_app.logger.info(f"批量添加院校志愿, {len(colleges_data)} 个院校")
             
             # 获取现有院校志愿的序号
             existing_indexes = {c.volunteer_index for c in 
@@ -773,66 +782,93 @@ class VolunteerPlanService:
             raise
         
 
-def ai_select_college_ids(filtered_colleges, user_info):
+def ai_select_college_ids(filtered_colleges, user_info, recommendation_data, is_first=False):
     """
-    AI选择院校ID，只在发生错误时使用备选方案
+    AI选择院校ID，基于学生成绩类型选择不同的推荐策略
     
     :param filtered_colleges: 筛选出的院校列表(包含简化数据)
-    :param user_info: 用户信息
+    :param user_info: 用户信息文本
+    :param recommendation_data: 学生推荐数据，包含各类成绩信息
     :return: 选择的院校ID列表
     """
     try:
-        # 这里只需要传递简化的院校数据给AI
-        simplified_colleges = []
-        for college in filtered_colleges:
-            simplified_colleges.append({
-                'cgid': college['cgid'],  # 院校专业组ID
-                'name': college['cname'],  # 院校名称
-                'city': college['area_name'],  # 城市
-                'tese': college['tese_text'],  # 院校特色
-                'specialties': [
-                    {
-                        "spname": specialty["spname"],
-                        "tuition": specialty["tuition"],
-                        "spid": specialty["spid"]
-                    }
-                    for specialty in college['specialties']
-                ]
-            })
+        # 检查学生是否有高考成绩
+        has_gaokao_score = recommendation_data.get('student_score', 0) > 0
         
-        simplified_colleges_json = json.dumps(simplified_colleges, ensure_ascii=False)
-        
-        # 调用AI服务并解析结果
-        ai_res_json = MoonshotAI.filter_colleges(user_info, simplified_colleges_json)
-        ai_res_dict = json.loads(ai_res_json)
-        
-        # 验证AI返回结果是否符合要求（最多4个学校）
-        if len(ai_res_dict) > 4:
-            # 只保留前4个学校
-            ai_res_dict = {k: ai_res_dict[k] for k in list(ai_res_dict.keys())[:4]}
-        
-        # 验证每个学校的专业是否符合要求（最多6个专业）
-        for cgid, spids in ai_res_dict.items():
-            if len(spids) > 6:
-                ai_res_dict[cgid] = spids[:6]
-        
-        return ai_res_dict
+        # 检查学生是否有模考成绩
+        latest_mock_score = recommendation_data.get('mock_exam_score', 0) > 0
+        if is_first:
+            return fallback_recommendation(filtered_colleges)
+
+        # 基于成绩类型选择推荐策略
+        if has_gaokao_score:
+            # 有高考成绩且不是第一次生成方案，使用AI推荐
+            current_app.logger.info("学生有高考成绩，使用AI推荐")
+            return ai_recommend_with_score(filtered_colleges, user_info)
+        elif latest_mock_score:
+            # 有模考成绩，使用模考成绩推荐
+            current_app.logger.info(f"学生使用最新模考成绩 {latest_mock_score} 进行推荐")
+            return fallback_recommendation(filtered_colleges)
+        else:
+            # 没有任何成绩，使用备选方案
+            current_app.logger.info("学生没有可用成绩，使用备选推荐方案")
+            return fallback_recommendation(filtered_colleges)
         
     except Exception as e:
         # 任何错误时使用备选方案
         current_app.logger.error(f"AI选择院校ID过程中发生错误: {str(e)}")
-        
-        # 准备备选方案（前4个学校，每个学校前6个专业）
-        fallback_result = {}
-        for college in filtered_colleges[:4]:
-            cgid = str(college['cgid'])
-            specialties = college['specialties'][:6]
-            if specialties:
-                fallback_result[cgid] = [str(s['spid']) for s in specialties]
-        
-        return fallback_result
+        return fallback_recommendation(filtered_colleges)
+
+def ai_recommend_with_score(filtered_colleges, user_info):
+    """使用AI基于高考成绩推荐院校"""
+    # 这里是原来的AI推荐逻辑
+    simplified_colleges = []
+    for college in filtered_colleges:
+        simplified_colleges.append({
+            'cgid': college['cgid'],  # 院校专业组ID
+            'name': college['cname'],  # 院校名称
+            'city': college['area_name'],  # 城市
+            'tese': college['tese_text'],  # 院校特色
+            'specialties': [
+                {
+                    "spname": specialty["spname"],
+                    "tuition": specialty["tuition"],
+                    "spid": specialty["spid"]
+                }
+                for specialty in college['specialties']
+            ]
+        })
     
-def process_batch(student_id, planner_id, category_id, group_id, plan_id=None):
+    simplified_colleges_json = json.dumps(simplified_colleges, ensure_ascii=False)
+    # 调用AI服务并解析结果
+    ai_res_json = MoonshotAI.filter_colleges(user_info, simplified_colleges_json)
+    ai_res_dict = json.loads(ai_res_json)
+    
+    # 验证AI返回结果是否符合要求（最多4个学校）
+    if len(ai_res_dict) > 4:
+        # 只保留前4个学校
+        ai_res_dict = {k: ai_res_dict[k] for k in list(ai_res_dict.keys())[:4]}
+    
+    # 验证每个学校的专业是否符合要求（最多6个专业）
+    for cgid, spids in ai_res_dict.items():
+        if len(spids) > 6:
+            ai_res_dict[cgid] = spids[:6]
+    
+    return ai_res_dict
+
+def fallback_recommendation(filtered_colleges):
+    """备选推荐方案"""
+    # 准备备选方案（前4个学校，每个学校前6个专业）
+    fallback_result = {}
+    for college in filtered_colleges[:4]:
+        cgid = str(college['cgid'])
+        specialties = college['specialties'][:6]
+        if specialties:
+            fallback_result[cgid] = [str(s['spid']) for s in specialties]
+    
+    return fallback_result
+    
+def process_batch(student_id, planner_id, category_id, group_id, plan_id=None, is_first=False):
     """
     处理一个批次的志愿
     
@@ -845,6 +881,10 @@ def process_batch(student_id, planner_id, category_id, group_id, plan_id=None):
     """
     
     try:
+        # 计算实际的group_id（1-12）
+        actual_group_id = (category_id - 1) * 4 + group_id
+
+        current_app.logger.info(f"=====类别ID={category_id}, 分组ID={actual_group_id}, 方案ID={plan_id}=====")
         # 使用StudentDataService获取学生数据
         recommendation_data = StudentDataService.extract_college_recommendation_data(student_id)
         # 获取学生的文本信息
@@ -856,17 +896,16 @@ def process_batch(student_id, planner_id, category_id, group_id, plan_id=None):
         student_subjects = recommendation_data['student_subjects']
         area_ids = recommendation_data.get('area_ids', [])
         specialty_types = recommendation_data.get('specialty_types', [])
-        
+        tuition_ranges = recommendation_data.get('tuition_ranges', [])
+        mock_exam_score = int(recommendation_data['mock_exam_score'] or 0)
+
         # 确保area_ids和specialty_types是可迭代的且包含有效整数
         area_ids = [int(aid) for aid in area_ids if aid and str(aid).isdigit()]
         specialty_types = [int(st) for st in specialty_types if st and str(st).isdigit()]
         
-        # 计算实际的group_id（1-12）
-        actual_group_id = (category_id - 1) * 4 + group_id
-        
         # 1. 获取筛选结果
         filtered_colleges, _ = RecommendationService.get_colleges_by_category_and_group(
-            student_score=student_score,
+            student_score=student_score > 0 and student_score or mock_exam_score,
             subject_type=subject_type,
             education_level=education_level,
             category_id=category_id,
@@ -874,9 +913,11 @@ def process_batch(student_id, planner_id, category_id, group_id, plan_id=None):
             student_subjects=student_subjects,
             area_ids=area_ids,
             specialty_types=specialty_types,
+            tuition_ranges=tuition_ranges,
             page=1,
             per_page=100  # 获取足够多的结果供AI选择
         )
+        
         current_app.logger.info(f"筛选到的院校数量: {len(filtered_colleges)}")
         
         # 如果没有筛选到院校，直接返回
@@ -884,7 +925,7 @@ def process_batch(student_id, planner_id, category_id, group_id, plan_id=None):
             return plan_id, False
         
         # 2. 让AI选择院校及专业，并返回对应ID
-        ai_selection = ai_select_college_ids(filtered_colleges, user_info)
+        ai_selection = ai_select_college_ids(filtered_colleges, user_info, recommendation_data, is_first=is_first)
 
         # 如果AI没有选择结果，直接返回
         if not ai_selection:
@@ -928,7 +969,8 @@ def process_batch(student_id, planner_id, category_id, group_id, plan_id=None):
                 'subject_requirements': college_data['subject_requirements'],
                 'tese_text': college_data['tese_text'],
                 'teshu_text': college_data['teshu_text'],
-                'uncode': college_data['uncode']
+                'uncode': college_data['uncode'],
+                'nature': college_data['school_nature'],  
             }
             
             # 处理专业ID列表
@@ -1000,7 +1042,7 @@ def process_batch(student_id, planner_id, category_id, group_id, plan_id=None):
         # 重新抛出异常或返回失败状态
         return plan_id, False
     
-def generate_complete_volunteer_plan(student_id, planner_id, user_data_hash):
+def generate_complete_volunteer_plan(student_id, planner_id, user_data_hash, is_first=False):
     """
     生成完整的志愿方案(包含进度跟踪)
     
@@ -1008,31 +1050,41 @@ def generate_complete_volunteer_plan(student_id, planner_id, user_data_hash):
     :param planner_id: 规划师ID
     :return: 生成的志愿方案
     """
-    # 创建空方案
+    # 获取学生数据快照
+    student_snapshot = StudentDataService.generate_student_data_snapshot(student_id)
+    current_snapshot = json.dumps(student_snapshot, ensure_ascii=False)
+
+    # 查找之前的方案
+    previous_plan = StudentVolunteerPlan.query.filter_by(
+        student_id=student_id,
+        is_current=True,
+        generation_status=StudentVolunteerPlan.GENERATION_STATUS_SUCCESS
+    ).order_by(StudentVolunteerPlan.version.desc()).first()
+    previous_snapshot = json.dumps(previous_plan.student_data_snapshot, ensure_ascii=False) if previous_plan else None
+
+    # 创建空方案并设置所有初始状态
     plan = VolunteerPlanService.create_empty_plan(
         student_id=student_id,
         planner_id=planner_id,
         remarks="AI生成的志愿方案",
-        user_data_hash=user_data_hash  # 添加用户数据哈希
+        user_data_hash=user_data_hash,
+        generation_status=StudentVolunteerPlan.GENERATION_STATUS_PROCESSING,
+        generation_progress=0,
+        generation_message="开始生成志愿方案",
+        student_data_snapshot=current_snapshot
     )
     plan_id = plan['id']
-    
-    # 更新方案状态为生成中
-    StudentVolunteerPlan.query.filter_by(id=plan_id).update({
-        'generation_status': StudentVolunteerPlan.GENERATION_STATUS_PROCESSING,
-        'generation_progress': 0,
-        'generation_message': "开始生成志愿方案",
-        'user_data_hash': user_data_hash  # 确保数据哈希被设置
-    })
-    db.session.commit()
-    
+
+    from app.tasks.volunteer_tasks import analyze_student_snapshots_ai
+    analyze_student_snapshots_ai.delay(plan_id, current_snapshot, previous_snapshot)
+
     try:
         # 处理所有批次
         batch_count = 12
         processed_count = 0
         
         # 遍历所有类别和组
-        for category_id in [1, 2, 3]:  # 冲、稳、保
+        for category_id in [1,2,3]:  # 冲、稳、保
             for group_id in range(1, 5):  # 每类4个小组(1-4)
                 # 处理一个批次
                 plan_id, success = process_batch(
@@ -1040,7 +1092,8 @@ def generate_complete_volunteer_plan(student_id, planner_id, user_data_hash):
                     planner_id=planner_id,
                     category_id=category_id,
                     group_id=group_id,
-                    plan_id=plan_id
+                    plan_id=plan_id,
+                    is_first=is_first
                 )
                 
                 # 更新进度

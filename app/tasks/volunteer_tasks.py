@@ -5,9 +5,12 @@ from app.extensions import celery
 from app.services.volunteer.plan_service import generate_complete_volunteer_plan
 from app.services.volunteer.volunteer_analysis_service import AIVolunteerAnalysisService
 from app.services.volunteer.ai_college_specialty_service import AICollegeSpecialtyAnalysisService
+from app.models.student_volunteer_plan import StudentVolunteerPlan
+from app.extensions import db
+from app.services.ai.moonshot import MoonshotAI
 
 @celery.task(bind=True)
-def generate_volunteer_plan_task(self, student_id, planner_id, user_data_hash):
+def generate_volunteer_plan_task(self, student_id, planner_id, user_data_hash, is_first = False):
     """
     异步生成志愿方案任务
     
@@ -24,7 +27,8 @@ def generate_volunteer_plan_task(self, student_id, planner_id, user_data_hash):
         result = generate_complete_volunteer_plan(
             student_id=student_id,
             planner_id=planner_id,
-            user_data_hash=user_data_hash
+            user_data_hash=user_data_hash,
+            is_first=is_first
         )
         
         # 返回结果
@@ -69,7 +73,6 @@ def analyze_volunteer_category_task(self, plan_id, category_id):
             "message": f"任务执行异常: {str(e)}"
         }
     
-
 @celery.task(bind=True)
 def analyze_college_task(self, volunteer_college_id):
     """
@@ -116,4 +119,40 @@ def analyze_specialty_task(self, specialty_id):
             'status': 'error',
             'specialty_id': specialty_id,
             'message': f'分析过程出错: {str(e)}'
+        }
+    
+
+@celery.task(bind=True)
+def analyze_student_snapshots_ai(self, plan_id, current_snapshot, previous_snapshot):
+    """
+    异步任务：使用AI分析两次学生数据快照的差异
+    
+    :param current_snapshot: 当前方案的学生数据快照
+    :param previous_snapshot: 前一个方案的学生数据快照
+    :return: 任务结果
+    """
+    try:
+        current_plan = StudentVolunteerPlan.query.get(plan_id)
+
+        if previous_snapshot is None:
+            current_plan.data_changes = "第一次生成方案"
+        else:
+            changes_text = MoonshotAI.analyzing_student_snapshots(current_snapshot, previous_snapshot)
+            # 更新方案的变更记录和分析状态
+            current_plan.data_changes = changes_text
+        db.session.commit()
+        return {
+            "status": "success", 
+            "message": "AI分析完成",
+        }
+        
+    except Exception as e:
+        current_plan = StudentVolunteerPlan.query.get(plan_id)
+        current_plan.data_changes = f"分析失败"
+        db.session.commit()
+        
+        return {
+            "status": "error", 
+            "message": f"AI分析失败: {str(e)}",
+            "plan_id": plan_id
         }

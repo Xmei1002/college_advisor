@@ -76,7 +76,7 @@ class ScoreClassifier:
             return None
         category = ScoreClassifier.CATEGORY_MAP[category_id]
         group_suffix = ScoreClassifier.GROUP_MAP[group_id]
-        print('category:', category, 'group_suffix:', group_suffix)
+        # print('category:', category, 'group_suffix:', group_suffix)
         # 构建对应的志愿组名称，如 "冲-志愿1-4"
         # 注意: 冲1-4对应group_id=1, 稳17-20对应group_id=5,保33-36对应group_id=9
         if category == ScoreClassifier.CATEGORY_CHASING:

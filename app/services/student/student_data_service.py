@@ -17,9 +17,9 @@ class StudentDataService:
         """
         # 1. 获取学生完整数据
         student = Student.query.get_or_404(student_id)
-        academic_record = student.academic_record  # 假设已建立关联
-        college_pref = student.college_preference  # 假设已建立关联
-        career_pref = student.career_preference    # 假设已建立关联
+        academic_record = student.academic_record  # 已建立关联
+        college_pref = student.college_preference  # 已建立关联
+        career_pref = student.career_preference    # 已建立关联
         
         # 2. 提取学生分数
         student_score = StudentDataService._parse_score(academic_record.gaokao_total_score)
@@ -39,12 +39,21 @@ class StudentDataService:
         specialty_types = []
         if college_pref and college_pref.preferred_majors:
             specialty_types = StudentDataService._get_specialty_type_ids(college_pref.preferred_majors)
+
+        # 7. 获取模考分数
+        mock_exam_score = StudentDataService._parse_score(academic_record.mock_exam_score)
+
+        # 8. 提取学费范围
+        tuition_ranges = []
+        if college_pref and college_pref.tuition_range:
+            tuition_ranges = StudentDataService._parse_tuition_range(college_pref.tuition_range)
         
+        # 9. 确定教育层次 (11-本科，12-专科)
         education_level = StudentDataService._determine_education_level(
-            student_score, 
+            student_score and student_score > 0 or mock_exam_score, 
             subject_type, 
         )
-        print('学生批次：', education_level)
+
         # 组织返回数据
         result = {
             'student_id': student.id,
@@ -54,6 +63,8 @@ class StudentDataService:
             'student_subjects': student_subjects,
             'area_ids': area_ids,
             'specialty_types': specialty_types,
+            'mock_exam_score': mock_exam_score,
+            'tuition_ranges': tuition_ranges 
         }
         
         return result
@@ -170,17 +181,6 @@ class StudentDataService:
         return specialty_ids
     
     @staticmethod
-    def analyzing_strategy_by_AI(student_id):
-        """
-        根据AI分析策略，生成学生个人档案
-        :param student_id: 学生ID
-        :return: 结果
-        """
-        # 获取学生完整数据
-        student = Student.query.get_or_404(student_id)
-        academic_record = student.academic_record
-
-    @staticmethod
     def _determine_education_level(student_score, subject_type, province_id=None):
         """
         根据学生分数和科别判断适合的教育层次
@@ -193,7 +193,7 @@ class StudentDataService:
         
         # 默认为本科
         default_level = 11
-        
+    
         try:
             # 查询最新年份的数据
             latest_year = '2025'
@@ -228,6 +228,48 @@ class StudentDataService:
         except Exception as e:
             # 出现异常时记录日志并返回默认值
             return default_level
+
+    @staticmethod
+    def _parse_tuition_range(tuition_range_str):
+        """
+        解析学费范围字符串为具体的数值范围
+        
+        :param tuition_range_str: 学费范围字符串，如"1-2万,2-3万,3-5万,8万以上"
+        :return: 学费范围列表，格式为[(min1, max1), (min2, max2), ...]
+        """
+        if not tuition_range_str:
+            return []
+        
+        result = []
+        ranges = [r.strip() for r in tuition_range_str.split(',')]
+        
+        for range_str in ranges:
+            if "万以内" in range_str:
+                # 处理"X万以内"的情况
+                try:
+                    max_value = float(range_str.replace('万以内', '').strip()) * 10000
+                    result.append((0, int(max_value)))
+                except (ValueError, TypeError):
+                    continue
+            elif "万以上" in range_str:
+                # 处理"X万以上"的情况
+                try:
+                    min_value = float(range_str.replace('万以上', '').strip()) * 10000
+                    # 使用一个足够大的值作为上限，或者使用None表示无上限
+                    result.append((int(min_value), None))
+                except (ValueError, TypeError):
+                    continue
+            elif "-" in range_str:
+                # 处理"X-Y万"的情况
+                try:
+                    parts = range_str.replace('万', '').split('-')
+                    min_value = float(parts[0].strip()) * 10000
+                    max_value = float(parts[1].strip()) * 10000
+                    result.append((int(min_value), int(max_value)))
+                except (ValueError, TypeError, IndexError):
+                    continue
+        
+        return result
 
     @staticmethod
     def generate_student_profile_text(student_id):
@@ -319,13 +361,7 @@ class StudentDataService:
                     text_parts.append(f"{subject}：{score}")
             
             # 添加模考成绩
-            text_parts.append("\n【模考成绩】")
-            if academic_record.mock_exam1_score:
-                text_parts.append(f"第一次模考：{academic_record.mock_exam1_score}")
-            if academic_record.mock_exam2_score:
-                text_parts.append(f"第二次模考：{academic_record.mock_exam2_score}")
-            if academic_record.mock_exam3_score:
-                text_parts.append(f"第三次模考：{academic_record.mock_exam3_score}")
+            text_parts.append(f"【模考成绩】：{academic_record.mock_exam_score}")
         else:
             text_parts.append("暂无学业记录信息")
         text_parts.append("")
@@ -395,3 +431,38 @@ class StudentDataService:
         
         # 合并所有文本部分
         return "\n".join(text_parts)
+    
+    @staticmethod
+    def generate_student_data_snapshot(student_id):
+        """
+        生成学生数据快照，包含生成志愿方案所需的所有信息
+        所有键使用中文标签便于直接展示
+        
+        :param student_id: 学生ID
+        :return: 包含所有相关学生信息的字典，键为中文标签
+        """
+        # 获取学生数据
+        student = Student.query.get_or_404(student_id)
+        academic_record = student.academic_record
+        college_pref = student.college_preference
+        
+        # 获取目前用于推荐的数据
+        recommendation_data = StudentDataService.extract_college_recommendation_data(student_id)
+        
+        # 组织快照数据（使用中文键）
+        snapshot = {
+            '学生ID': student_id,
+            '姓名': student.name,
+            '高考总分': academic_record.gaokao_total_score or '',
+            '科别': '文科' if recommendation_data['subject_type'] == 1 else '理科',
+            '教育层次': '本科' if recommendation_data['education_level'] == 11 else '专科',
+            '选考科目': academic_record.selected_subjects or '',
+            '意向地域': college_pref.preferred_locations if college_pref else '',
+            '意向专业': college_pref.preferred_majors if college_pref else '',
+            '学费范围': college_pref.tuition_range if college_pref else '',
+            '模考成绩': academic_record.mock_exam_score or ''
+            # 以下是原始数据，用于比较变化，保持与extract_college_recommendation_data一致的格式
+            # '_原始数据': recommendation_data
+        }
+        
+        return snapshot

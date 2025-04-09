@@ -81,7 +81,11 @@ def get_analysis_result(plan_id, category_id):
     ).first()
 
     if not result or result.status != VolunteerCategoryAnalysis.STATUS_COMPLETED:
-        return APIResponse.error("该方案当前类别尚未生成AI分析结果", code=404)
+        return APIResponse.success(
+            data=None,
+            message="该方案当前类别尚未生成AI分析结果",
+            code=200
+        )
     else:
         analysis = result.analysis_content
 

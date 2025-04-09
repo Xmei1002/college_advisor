@@ -108,9 +108,9 @@ class AcademicRecord(Base):
     politics_score = db.Column(db.String(20), comment='政治成绩')
     
     # 模考成绩
-    mock_exam1_score = db.Column(db.String(20), comment='第一次模考成绩')
-    mock_exam2_score = db.Column(db.String(20), comment='第二次模考成绩')
-    mock_exam3_score = db.Column(db.String(20), comment='第三次模考成绩')
+    mock_exam_score = db.Column(db.String(20), comment='模考成绩')
+    # mock_exam2_score = db.Column(db.String(20), comment='第二次模考成绩')
+    # mock_exam3_score = db.Column(db.String(20), comment='第三次模考成绩')
     
     def to_dict(self):
         """转换为字典表示"""
@@ -131,9 +131,7 @@ class AcademicRecord(Base):
             'biology_score': self.biology_score,
             'geography_score': self.geography_score,
             'politics_score': self.politics_score,
-            'mock_exam1_score': self.mock_exam1_score,
-            'mock_exam2_score': self.mock_exam2_score,
-            'mock_exam3_score': self.mock_exam3_score,
+            'mock_exam_score': self.mock_exam_score,
             'created_at': self.created_at,
             'updated_at': self.updated_at
         }

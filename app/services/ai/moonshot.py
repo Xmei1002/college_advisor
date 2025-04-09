@@ -2,7 +2,7 @@ from openai import OpenAI
 import os
 from .prompt import (FILTER_COLLEGE_PROMPT, ANALYZING_CATEGORY_PROMPT, 
                      ANALYZING_COLLEGE_PROMPT, ANALYZING_SPECIALTY_PROMPT,
-                     ANALYZING_STRATEGY_PROMPT)
+                     ANALYZING_STRATEGY_PROMPT,ANALYZING_SNAPSHOT_PROMPT)
 from flask import current_app
 
 class MoonshotAI:
@@ -68,5 +68,10 @@ class MoonshotAI:
     @classmethod
     def analyzing_specialty(cls, user_info, specialty_json, temperature=0.3):
         user_input = ANALYZING_SPECIALTY_PROMPT.format(user_info=user_info, specialty_json=specialty_json)
+        return cls._call_api(user_input, temperature)
+    
+    @classmethod
+    def analyzing_student_snapshots(cls, current_snapshot, previous_snapshot, temperature=0.3):
+        user_input = ANALYZING_SNAPSHOT_PROMPT.format(current_snapshot=current_snapshot, previous_snapshot=previous_snapshot)
         return cls._call_api(user_input, temperature)
     

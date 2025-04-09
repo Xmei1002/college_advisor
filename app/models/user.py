@@ -20,13 +20,19 @@ class User(Base):
     # 用户状态
     USER_STATUS_ACTIVE = 'active'
     USER_STATUS_INACTIVE = 'inactive'
-    
+
+    CONSULTATION_STATUS_PENDING = '待咨询'  # 待咨询
+    CONSULTATION_STATUS_IN_PROGRESS = '咨询中'  # 咨询中
+    CONSULTATION_STATUS_COMPLETED = '已完成'  # 已完成咨询
+    CONSULTATION_STATUS_FOLLOW_UP = '需跟进'  # 需要跟进
+
     status = db.Column(db.String(20), default=USER_STATUS_ACTIVE)
     
     # 简单的登录记录
     last_login_at = db.Column(db.DateTime, nullable=True)
     last_login_ip = db.Column(db.String(50), nullable=True)
     planner_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    consultation_status = db.Column(db.String(20), comment='学生用户咨询状态')
 
     students = db.relationship(
         'User', 
@@ -91,6 +97,7 @@ class User(Base):
             'status': self.status,
             'created_at': self.created_at,
             'last_login_at': self.last_login_at,
+            'consultation_status': self.consultation_status,
             'planner_info': self.planner_info.to_dict() if hasattr(self, 'planner_info') and self.planner_info else None
         }
         

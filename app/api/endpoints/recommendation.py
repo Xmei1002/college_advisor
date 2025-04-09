@@ -119,19 +119,37 @@ def get_colleges_by_category(data):
         is_current=True
     ).first()
     
-    # 获取已选择的院校专业组ID及其对应的volunteer_index
+    # 获取已选择的院校专业组ID及其对应的volunteer_index和volunteer_college_id
     selected_college_map = {}
+    volunteer_college_ids = []
     if current_plan:
         # 获取当前志愿方案中的所有院校
         selected_colleges = VolunteerCollege.query.filter_by(plan_id=current_plan.id).all()
         # 创建院校专业组ID到volunteer_index的映射
-        selected_college_map = {
-            college.college_group_id: {
+        for college in selected_colleges:
+            selected_college_map[college.college_group_id] = {
                 'volunteer_index': college.volunteer_index,
                 'volunteer_college_id': college.id  # 保存VolunteerCollege表中的id
-            } 
-            for college in selected_colleges
-        }
+            }
+            volunteer_college_ids.append(college.id)
+    
+    # 获取所有已选择院校的专业信息
+    selected_specialties_map = {}
+    if volunteer_college_ids:
+        selected_specialties = VolunteerSpecialty.query.filter(
+            VolunteerSpecialty.volunteer_college_id.in_(volunteer_college_ids)
+        ).all()
+        
+        # 按volunteer_college_id分组存储专业选择信息
+        for specialty in selected_specialties:
+            if specialty.volunteer_college_id not in selected_specialties_map:
+                selected_specialties_map[specialty.volunteer_college_id] = {}
+            
+            # 存储专业ID到选择信息的映射
+            selected_specialties_map[specialty.volunteer_college_id][specialty.specialty_id] = {
+                'is_selected': True,
+                'specialty_index': specialty.specialty_index
+            }
     
     # 从学生ID提取学生信息
     recommendation_data = StudentDataService.extract_college_recommendation_data(student_id)
@@ -151,7 +169,8 @@ def get_colleges_by_category(data):
         per_page=per_page,
         tese_types=recommendation_data.get('tese_types'),
         leixing_types=recommendation_data.get('leixing_types'),
-        teshu_types=recommendation_data.get('teshu_types')
+        teshu_types=recommendation_data.get('teshu_types'),
+        tuition_ranges=recommendation_data.get('tuition_ranges'),
         # 不传入exclude_group_ids参数，获取所有符合条件的院校
     )
     
@@ -160,14 +179,38 @@ def get_colleges_by_category(data):
         if group['cgid'] in selected_college_map:
             group['is_selected'] = True
             group['volunteer_index'] = selected_college_map[group['cgid']]['volunteer_index']
-            group['volunteer_college_id'] = selected_college_map[group['cgid']]['volunteer_college_id']  # 添加这个字段
+            group['volunteer_college_id'] = selected_college_map[group['cgid']]['volunteer_college_id']
+            
+            # 获取该院校的专业选择映射
+            volunteer_college_id = group['volunteer_college_id']
+            specialty_map = selected_specialties_map.get(volunteer_college_id, {})
+            
+            # 标记该院校的专业列表
+            for specialty in group['specialties']:
+                if specialty['spid'] in specialty_map:
+                    specialty['is_selected'] = True
+                    specialty['specialty_index'] = specialty_map[specialty['spid']]['specialty_index']
+                else:
+                    specialty['is_selected'] = False
+                    specialty['specialty_index'] = None
         else:
             group['is_selected'] = False
             group['volunteer_index'] = None
-            group['volunteer_college_id'] = None  # 添加这个字段，但值为None
+            group['volunteer_college_id'] = None
+            
+            # 未选择的院校，所有专业都标记为未选择
+            for specialty in group['specialties']:
+                specialty['is_selected'] = False
+                specialty['specialty_index'] = None
     
-    # 按volunteer_index排序，已选择的院校排在前面，未选择的按原顺序排在后面
-    sorted_college_groups = sorted(college_groups, key=lambda x: (x['volunteer_index'] is None, x['volunteer_index'] or float('inf')))
+    # 先按原始逻辑排序（按score_diff降序）
+    college_groups = sorted(college_groups, key=lambda x: x['score_diff'], reverse=True)
+    
+    # 再按是否选择和volunteer_index排序（已选择的排前面）
+    sorted_college_groups = sorted(college_groups, key=lambda x: (
+        x['volunteer_index'] is None,  # 首先按是否有volunteer_index排序（False排在True前面）
+        x['volunteer_index'] if x['volunteer_index'] is not None else float('inf')  # 然后按volunteer_index排序
+    ))
     
     return APIResponse.pagination(
         items=sorted_college_groups,

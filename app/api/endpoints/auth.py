@@ -73,7 +73,8 @@ def verify_code(data):
     
     # 用户不存在，创建新用户（注册）
     if not user:
-        user = AuthService.register_student(phone, '123456')
+        consultation_status = User.CONSULTATION_STATUS_PENDING  # 默认咨询状态为待定
+        user = AuthService.register_student(phone, '123456',consultation_status)
         # 为新用户分配规划师
         user.assign_planner(planner)
         registration_message = "注册并登录成功"

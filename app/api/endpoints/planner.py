@@ -223,6 +223,9 @@ def get_student_preferences(student_id):
     
     # 获取就业倾向信息
     career_preference = CareerPreference.query.filter_by(student_id=student.id).first()
+    if student_user.consultation_status == User.CONSULTATION_STATUS_PENDING:
+        student_user.consultation_status = User.CONSULTATION_STATUS_IN_PROGRESS
+        student_user.save()
     
     # 组装返回数据
     result = {

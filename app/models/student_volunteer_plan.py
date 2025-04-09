@@ -21,6 +21,8 @@ class StudentVolunteerPlan(Base):
     generation_progress = db.Column(db.Integer, default=0, comment='生成进度百分比(0-100)')
     generation_message = db.Column(db.String(255), comment='生成过程信息或错误信息')
     user_data_hash = db.Column(db.String(64), comment='用户数据哈希，用于检测用户数据是否变化')
+    student_data_snapshot = db.Column(db.Text, comment='生成方案时的学生数据快照，JSON格式')
+    data_changes = db.Column(db.Text, comment='与上一版方案相比的数据变化描述')
 
     # 关系
     volunteers = db.relationship('VolunteerCollege', backref='plan', lazy='dynamic', cascade='all, delete-orphan')
@@ -43,6 +45,8 @@ class StudentVolunteerPlan(Base):
             'generation_status': self.generation_status,
             'generation_progress': self.generation_progress,
             'generation_message': self.generation_message,
+            'data_changes': self.data_changes,
+            'student_data_snapshot': self.student_data_snapshot,
             'user_data_hash': self.user_data_hash,
             'created_at': self.created_at,
             'updated_at': self.updated_at

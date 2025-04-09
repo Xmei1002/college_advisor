@@ -1,6 +1,5 @@
 # app/api/schemas/student.py
-from marshmallow import Schema, fields, validate
-from marshmallow import ValidationError, validates
+from marshmallow import ValidationError, validates,validates_schema,Schema, fields, validate
 
 class StudentProfileSchema(Schema):
     """学生基本信息提交验证Schema"""
@@ -80,10 +79,18 @@ class AcademicRecordSchema(Schema):
     geography_score = fields.String(description="地理成绩")
     politics_score = fields.String(description="政治成绩")
     
-    mock_exam1_score = fields.String(description="第一次模考成绩")
-    mock_exam2_score = fields.String(description="第二次模考成绩")
-    mock_exam3_score = fields.String(description="第三次模考成绩")
-
+    mock_exam_score = fields.String(description="模考成绩")
+    @validates_schema
+    def validate_scores(self, data, **kwargs):
+        """验证模考和高考成绩必须至少有一个存在且大于0"""
+        gaokao_score = data.get('gaokao_total_score')
+        mock_score = data.get('mock_exam_score')
+        
+        # 检查是否至少有一项成绩存在
+        if not (gaokao_score or mock_score):
+            raise ValidationError("高考成绩和模考成绩必须至少填写一项")
+        
+        
 class StudentResponseSchema(Schema):
     """学生信息响应Schema"""
     id = fields.Integer()
@@ -141,7 +148,14 @@ class AcademicRecordResponseSchema(Schema):
     geography_score = fields.String()
     politics_score = fields.String()
 
-    mock_exam1_score = fields.String()
-    mock_exam2_score = fields.String()
-    mock_exam3_score = fields.String()
+    mock_exam_score = fields.String()
 
+# 合并的请求Schema
+class CombinedStudentDataSchema(Schema):
+    profile = fields.Nested(StudentProfileSchema, required=True)
+    academic_record = fields.Nested(AcademicRecordSchema, required=True)
+
+# 合并的响应Schema
+class CombinedStudentResponseSchema(Schema):
+    student = fields.Nested(StudentResponseSchema, required=True)
+    academic_record = fields.Nested(AcademicRecordResponseSchema)

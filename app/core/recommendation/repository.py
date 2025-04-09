@@ -139,7 +139,8 @@ class CollegeRepository:
     def get_college_groups_by_category(student_score, subject_type, education_level, 
                                     category_id, group_id, student_subjects,
                                     area_ids=None, specialty_types=None, 
-                                    mode='smart', tese_types=None, leixing_types=None, teshu_types=None):
+                                    mode='smart', tese_types=None, leixing_types=None, teshu_types=None,
+                                    tuition_ranges=None):
         """
         根据类别和志愿段查询符合要求的院校专业组
         
@@ -155,6 +156,7 @@ class CollegeRepository:
         :param tese_types: 学校特色筛选列表
         :param leixing_types: 学校类型筛选列表
         :param teshu_types: 特殊类型筛选列表
+        :param tuition_ranges: 学费范围列表，格式为[(min1, max1), (min2, max2), ...]
         :return: 符合条件的专业组列表
         """
 
@@ -165,7 +167,8 @@ class CollegeRepository:
         tese_types = tese_types or []
         leixing_types = leixing_types or []
         teshu_types = teshu_types or []
-        
+        tuition_ranges = tuition_ranges or []
+
         # 获取分差范围
         score_diff_range = ScoreClassifier.get_score_diff_range(
             category_id, group_id, education_level, mode
@@ -282,7 +285,37 @@ class CollegeRepository:
                 elif subject_value == 2:  # 学生没选该科目
                     # 只能匹配专业对该科目无要求(值为2)的情况
                     query = query.filter(getattr(ZwhXgkFenzu2025, subject_key) == 2)
-        
+
+        if tuition_ranges:
+            # 构建学费筛选条件
+            tuition_conditions = []
+            for min_fee, max_fee in tuition_ranges:
+                if max_fee is None:
+                    # "X万以上"的情况: 学校的最低学费大于等于指定值
+                    tuition_conditions.append(ZwhXgkFenzu2025.minxuefei >= min_fee)
+                else:
+                    # 匹配情况1：学校的最低学费在范围内
+                    condition1 = db.and_(
+                        ZwhXgkFenzu2025.minxuefei >= min_fee,
+                        ZwhXgkFenzu2025.minxuefei <= max_fee
+                    )
+                    # 匹配情况2：学校的最高学费在范围内
+                    condition2 = db.and_(
+                        ZwhXgkFenzu2025.maxxuefei >= min_fee,
+                        ZwhXgkFenzu2025.maxxuefei <= max_fee
+                    )
+                    # 匹配情况3：学校的学费范围完全包含所选范围
+                    condition3 = db.and_(
+                        ZwhXgkFenzu2025.minxuefei <= min_fee,
+                        ZwhXgkFenzu2025.maxxuefei >= max_fee
+                    )
+                    # 将三种匹配情况以OR连接
+                    tuition_conditions.append(db.or_(condition1, condition2, condition3))
+            
+            # 将所有学费范围条件以OR连接
+            if tuition_conditions:
+                query = query.filter(db.or_(*tuition_conditions))
+
         # 执行查询
         results = query.all()
             
