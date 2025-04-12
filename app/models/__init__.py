@@ -25,3 +25,7 @@ from app.models.zwh_xgk_yuanxiao_2025 import ZwhXgkYuanxiao2025
 from app.models.zwh_xgk_zhuanye_2025 import ZwhXgkZhuanye2025
 
 from app.models.student_volunteer_plan import StudentVolunteerPlan, VolunteerCollege, VolunteerSpecialty
+
+# AI聊天
+from app.models.messages import Message
+from app.models.conversations import Conversation

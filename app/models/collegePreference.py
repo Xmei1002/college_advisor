@@ -23,23 +23,33 @@ class CollegePreference(Base):
     preferred_schools = db.Column(db.String(1000), comment='意向学校，多个学校以逗号分隔')
     
     # 填报策略选择
-    strategy = db.Column(db.String(20), comment='填报策略：院校优先 or 专业优先')
+    strategy = db.Column(db.String(20), comment='填报策略：冲刺院校，兼顾专业 or 冲刺专业方向，院校其次')
     
     # 报考倾向
     application_preference = db.Column(db.Text, comment='报考倾向：家庭背景资源、意向院校以及专业等情况的详细描述')
     
-    def to_dict(self):
+    def to_dict(self,send_ai=False):
         """转换为字典表示"""
-        return {
-            'id': self.id,
-            'student_id': self.student_id,
-            'preferred_locations': self.preferred_locations,
-            'tuition_range': self.tuition_range,
-            'preferred_majors': self.preferred_majors,
-            'school_types': self.school_types,
-            'preferred_schools': self.preferred_schools,
-            'strategy': self.strategy,
-            'application_preference': self.application_preference,
-            'created_at': self.created_at,
-            'updated_at': self.updated_at
-        }
+        if send_ai:
+            return {
+                'preferred_locations': self.preferred_locations,
+                'tuition_range': self.tuition_range,
+                'preferred_majors': self.preferred_majors,
+                'preferred_schools': self.preferred_schools,
+                'strategy': self.strategy,
+                'application_preference': self.application_preference,
+            }
+        else:
+            return {
+                'id': self.id,
+                'student_id': self.student_id,
+                'preferred_locations': self.preferred_locations,
+                'tuition_range': self.tuition_range,
+                'preferred_majors': self.preferred_majors,
+                'school_types': self.school_types,
+                'preferred_schools': self.preferred_schools,
+                'strategy': self.strategy,
+                'application_preference': self.application_preference,
+                'created_at': self.created_at,
+                'updated_at': self.updated_at
+            }

@@ -8,6 +8,8 @@ from app.services.volunteer.ai_college_specialty_service import AICollegeSpecial
 from app.models.student_volunteer_plan import StudentVolunteerPlan
 from app.extensions import db
 from app.services.ai.moonshot import MoonshotAI
+from app.services.volunteer.consultation_status_service import update_student_plan_status
+from app.services.chat.chat_service import ChatService
 
 @celery.task(bind=True)
 def generate_volunteer_plan_task(self, student_id, planner_id, user_data_hash, is_first = False):
@@ -31,6 +33,11 @@ def generate_volunteer_plan_task(self, student_id, planner_id, user_data_hash, i
             is_first=is_first
         )
         
+        if not is_first:
+            print("生成方案成功，开始分析学生数据快照")
+            # 更新学生志愿方案状态
+            update_student_plan_status(student_id)
+            
         # 返回结果
         return {
             'status': 'success',
@@ -156,3 +163,28 @@ def analyze_student_snapshots_ai(self, plan_id, current_snapshot, previous_snaps
             "message": f"AI分析失败: {str(e)}",
             "plan_id": plan_id
         }
+    
+
+@celery.task(bind=True)
+def generate_conversation_title_task(self, conversation_id, message_content):
+    """
+    异步生成会话标题的Celery任务
+    
+    :param conversation_id: 会话ID
+    :param message_content: 用户消息内容
+    """
+    try:
+        
+        # 调用AI生成标题
+        generated_title = MoonshotAI.generate_conversation_title(message_content)
+        
+        # 确保生成的标题不为空且不超过30个字符
+        if generated_title and len(generated_title.strip()) > 0:
+            title = generated_title
+            # 更新会话标题
+            ChatService.update_conversation_title(conversation_id, title)
+            return {"status": "success", "title": title}
+        else:
+            return {"status": "error", "message": "生成的标题为空"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}

@@ -4,6 +4,8 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.utils.response import APIResponse
 from app.utils.decorators import api_error_handler
 from flask_smorest import Blueprint
+from app.extensions import db
+from sqlalchemy.exc import SQLAlchemyError
 from app.api.schemas.volunteer_analysis import (
   VolunteerCategorySchema, QueryAnalysisResultSchema, CollegeAnalysisSchema, SpecialtyAnalysisSchema
 )
@@ -19,15 +21,13 @@ volunteer_analysis_bp = Blueprint(
 )
 
 @volunteer_analysis_bp.route('/category', methods=['POST'])
-@volunteer_analysis_bp.arguments(VolunteerCategorySchema)  # 使用 Schema 解析请求数据
+@volunteer_analysis_bp.arguments(VolunteerCategorySchema)
 @jwt_required()
 @api_error_handler
 def analyze_volunteer_category(data):
     """
     AI对每个志愿的冲稳保三类进行分析
     """
-    # data 已由 VolunteerCategorySchema 解析为字典
-
     plan_id = data['plan_id']
     category_id = data['category_id']
     current_user_id = get_jwt_identity()
@@ -38,22 +38,42 @@ def analyze_volunteer_category(data):
     if not is_planner:
         return APIResponse.error("无权限访问该接口", code=403)
     
+    # 检查是否存在已完成或正在处理中的分析
     has_analysis = VolunteerCategoryAnalysis.query.filter_by(
         plan_id=plan_id,
         category_id=category_id
     ).first()
 
-    if has_analysis and has_analysis.status == VolunteerCategoryAnalysis.STATUS_COMPLETED:
-        return APIResponse.error("该方案当前类别已存在分析结果", code=400)
-
-    task = analyze_volunteer_category_task.delay(plan_id, category_id)
-    return APIResponse.success(
-        message="AI志愿分析任务已提交，正在处理中",
-        data={
-            "task_id": task.id
-        },
-        code=200
-    )
+    if has_analysis:
+        if has_analysis.status == VolunteerCategoryAnalysis.STATUS_COMPLETED:
+            return APIResponse.error("该方案当前类别已存在分析结果", code=400)
+        elif has_analysis.status == VolunteerCategoryAnalysis.STATUS_PROCESSING:
+            return APIResponse.error("该方案当前类别正在分析中，请稍后再试", code=400)
+    
+    # 创建一条"处理中"状态的记录
+    try:
+        new_analysis = VolunteerCategoryAnalysis(
+            plan_id=plan_id,
+            category_id=category_id,
+            status=VolunteerCategoryAnalysis.STATUS_PROCESSING
+        )
+        db.session.add(new_analysis)
+        db.session.commit()
+        
+        # 提交异步任务
+        task = analyze_volunteer_category_task.delay(plan_id, category_id)
+        
+        return APIResponse.success(
+            message="AI志愿分析任务已提交，正在处理中",
+            data={
+                "task_id": task.id
+            },
+            code=200
+        )
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        current_app.logger.error(f"创建分析记录失败: {str(e)}")
+        return APIResponse.error(f"创建分析任务失败: {str(e)}", code=500)
 
 @volunteer_analysis_bp.route('/category/<int:plan_id>/<int:category_id>', methods=['GET'])
 @jwt_required()
@@ -197,10 +217,13 @@ def analyze_specialty(data):
         return APIResponse.error("该专业已存在AI分析结果", code=400)
     
     # 启动异步任务
-    analyze_specialty_task.delay(specialty_id)
+    task = analyze_specialty_task.delay(specialty_id)
     
     return APIResponse.success(
         message="AI专业分析任务已提交，正在处理中",
+        data={
+            "task_id": task.id
+        },
         code=200
     )
 

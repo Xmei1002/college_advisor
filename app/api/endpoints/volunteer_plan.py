@@ -16,6 +16,11 @@ from app.api.schemas.volunteer_plan import (
 from app.models.user import User
 from app.utils.user_hash import calculate_user_data_hash
 from app.services.student.student_data_service import StudentDataService
+from app.services.volunteer.consultation_status_service import update_student_plan_status
+# 添加防重复提交检查
+from flask import session
+import time
+from flask import send_file
 
 # 创建志愿方案蓝图
 volunteer_plan_bp = Blueprint(
@@ -222,24 +227,62 @@ def update_volunteer_plan(data, plan_id):
     if current_user.user_type != User.USER_TYPE_PLANNER:
         return APIResponse.error("无权限访问该接口", code=403)
     
-    # 从请求数据中获取是否创建新版本的标志
-    # create_new_version = data.get('create_new_version', False)
-    create_new_version = True
+    # 获取上次提交时间
+    last_submit_time = session.get('last_update_time', 0)
+    current_time = time.time()
+    
+    # 如果两次提交间隔小于2秒，则认为是重复提交
+    if current_time - last_submit_time < 10:
+        return APIResponse.error("请勿频繁提交，请稍后再试", code=429)
+    
+    # 更新提交时间
+    session['last_update_time'] = current_time
     
     # 调用服务更新志愿方案
     updated_plan = VolunteerPlanService.update_volunteer_plan(
         plan_id=plan_id,
         update_data=data,
-        create_new_version=create_new_version
     )
+    
+    # 获取方案对应的学生ID并更新咨询状态
+    plan = StudentVolunteerPlan.query.get(plan_id)
+    if plan:
+        update_student_plan_status(plan.student_id)
     
     # 记录更新日志
     current_app.logger.info(
         f"用户 {current_user_id} 更新了志愿方案 {plan_id}，"
-        f"创建新版本: {create_new_version}"
     )
     
     return APIResponse.success(
         data=updated_plan,
         message="志愿方案更新成功"
     )
+
+
+@volunteer_plan_bp.route('/export/<int:plan_id>', methods=['GET'])
+@jwt_required()
+@api_error_handler
+def export_volunteer_plan(plan_id):
+    """导出志愿方案为Excel文件"""
+    
+    # 添加日志记录，帮助调试
+    current_app.logger.info(f"开始导出志愿方案 {plan_id} 为Excel文件")
+    
+    result = VolunteerPlanService.export_volunteer_plan_to_excel(plan_id)
+    
+    # 记录结果
+    current_app.logger.info(f"导出结果: {result}")
+    
+    if result['success']:
+        return send_file(
+            result['filepath'],
+            as_attachment=True,
+            download_name=result['filename'],
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+    else:
+        return APIResponse.error(
+            message=result.get('error', '导出志愿方案失败'),  # 使用 get 方法避免键不存在的情况
+            code=500
+        )

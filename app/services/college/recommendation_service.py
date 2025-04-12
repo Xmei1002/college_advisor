@@ -1,6 +1,7 @@
 # app/services/college/recommendation_service.py
 from app.core.recommendation.repository import CollegeRepository
 from app.core.recommendation.score_classification import ScoreClassifier
+from flask import current_app
 
 class RecommendationService:
     """院校推荐服务，组合数据访问和业务逻辑"""
@@ -43,10 +44,11 @@ class RecommendationService:
         tuition_ranges = tuition_ranges or []
         education_level = education_level or 11  # 默认本科
 
-        print(f"获取院校专业组列表: 学生分数={student_score}, 科别={subject_type}, 学历层次={education_level}, "
+        current_app.logger.info(f"获取院校专业组列表: 学生分数={student_score}, 科别={subject_type}, 学历层次={education_level}, "
               f"类别ID={category_id}, 志愿段ID={group_id}, 学生选科={student_subjects}, "
               f"地区ID={area_ids}, 专业类型={specialty_types}, 模式={mode}, "
               f"每页记录数={per_page}, 学费范围={tuition_ranges}, 排除的专业组ID={exclude_group_ids}")
+        
         
         # 1. 获取所有符合条件的专业组
         college_groups = CollegeRepository.get_college_groups_by_category(

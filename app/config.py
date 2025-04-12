@@ -38,7 +38,7 @@ class Config:
     # JWT配置
     JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY') or 'jwt-secret-string'
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(
-        days=int(os.environ.get('JWT_ACCESS_TOKEN_EXPIRES_DAYS', 7))
+        days=int(os.environ.get('JWT_ACCESS_TOKEN_EXPIRES_DAYS', 15))
     )
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(
         days=int(os.environ.get('JWT_REFRESH_TOKEN_EXPIRES_DAYS', 30))
@@ -48,6 +48,9 @@ class Config:
     CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL') or 'redis://localhost:6379/0'
     CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND') or 'redis://localhost:6379/0'
     
+    # 上传文件配置
+    UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'uploads')
+
     # 日志配置
     LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO')
     

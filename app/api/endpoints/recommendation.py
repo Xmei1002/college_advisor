@@ -111,7 +111,7 @@ def get_colleges_by_category(data):
     group_id = data.get('group_id', 1)  # 默认第一组
     mode = data.get('mode', 'smart')
     page = data.get('page', 1)
-    per_page = data.get('per_page', 20)
+    per_page = data.get('per_page', 10)
     
     # 查找学生当前的志愿方案
     current_plan = StudentVolunteerPlan.query.filter_by(
@@ -156,7 +156,7 @@ def get_colleges_by_category(data):
     
     # 调用服务获取推荐院校，不再传入exclude_group_ids参数
     college_groups, pagination = RecommendationService.get_colleges_by_category_and_group(
-        student_score=recommendation_data['student_score'],
+        student_score = recommendation_data['student_score'] if recommendation_data['student_score'] is not None and recommendation_data['student_score'] > 0 else recommendation_data['mock_exam_score'],
         subject_type=recommendation_data['subject_type'],
         education_level=recommendation_data['education_level'],
         category_id=category_id,

@@ -94,7 +94,6 @@ class UpdateVolunteerPlanSchema(Schema):
         unknown = EXCLUDE  # 允许忽略未知字段
     remarks = fields.String(allow_none=True)
     colleges = fields.List(fields.Nested(VolunteerCollegeSchema), required=True)
-    create_new_version = fields.Boolean(default=True)
 
 # 志愿方案响应Schema
 class VolunteerPlanResponseSchema(Schema):

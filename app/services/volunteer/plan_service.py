@@ -7,165 +7,14 @@ from app.services.college.recommendation_service import RecommendationService
 from app.services.ai.moonshot import MoonshotAI
 import json
 from app.services.student.student_data_service import StudentDataService
+import pandas as pd
+import os
+from datetime import datetime
+import openpyxl
+from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 
 class VolunteerPlanService:
     """志愿方案服务类，处理学生志愿方案相关业务逻辑"""
-    
-    @staticmethod
-    def create_volunteer_plan(student_id, planner_id, volunteer_data):
-        """
-        创建学生志愿方案
-        
-        :param student_id: 学生ID
-        :param planner_id: 规划师ID
-        :param volunteer_data: 志愿数据，格式为：
-            {
-                'remarks': '方案备注',
-                'colleges': [
-                    {
-                        'category_id': 1,  # 类别ID(1:冲, 2:稳, 3:保)
-                        'group_id': 1,     # 志愿段ID(1-12)
-                        'volunteer_index': 1,  # 志愿序号(1-48)
-                        'college_id': 123,     # 院校ID
-                        'college_name': '北京大学',  # 院校名称
-                        'college_group_id': 456,    # 院校专业组ID
-                        'score_diff': -10,          # 分差
-                        'prediction_score': 650,    # 预测分数
-                        'recommend_type': 'ai',     # 推荐类型
-                        'ai_analysis': '分析内容...',  # AI分析
-                        'specialties': [
-                            {
-                                'specialty_id': 789,     # 专业ID
-                                'specialty_code': 'CS01',  # 专业代码
-                                'specialty_name': '计算机科学',  # 专业名称
-                                'specialty_index': 1,    # 专业序号(1-6)
-                                'prediction_score': 650,  # 专业预测分数
-                                'plan_number': 50,       # 计划招生人数
-                                'tuition': 5000,         # 学费
-                                'remarks': '专业备注',     # 备注
-                                'ai_analysis': '专业分析...',  # AI分析
-                                'fenshuxian_id': 12345    # 关联分数线ID
-                            }
-                        ]
-                    }
-                ]
-            }
-        :return: 创建的志愿方案
-        """
-        try:
-            # 开始数据库事务
-            with db.session.begin_nested():
-                # 1. 获取学生当前的最新版本号
-                latest_plan = StudentVolunteerPlan.query.filter_by(
-                    student_id=student_id
-                ).order_by(StudentVolunteerPlan.version.desc()).first()
-                
-                new_version = 1
-                if latest_plan:
-                    new_version = latest_plan.version + 1
-                    
-                    # 将所有之前的方案设置为非当前版本(批量更新，只执行一次数据库操作)
-                    db.session.query(StudentVolunteerPlan).filter(
-                        StudentVolunteerPlan.student_id == student_id,
-                        StudentVolunteerPlan.is_current == True
-                    ).update({"is_current": False}, synchronize_session=False)
-                
-                # 2. 创建新的志愿方案
-                plan = StudentVolunteerPlan(
-                    student_id=student_id,
-                    planner_id=planner_id,
-                    version=new_version,
-                    is_current=True,
-                    remarks=volunteer_data.get('remarks', '')
-                )
-                db.session.add(plan)
-                db.session.flush()  # 刷新会话以获取plan.id，但不提交事务
-                
-                # 3. 预先准备所有需要批量插入的志愿院校和专业
-                volunteer_colleges = []
-                volunteer_specialties = []
-                
-                # 4. 处理院校志愿
-                for college_data in volunteer_data.get('colleges', []):
-                    college = VolunteerCollege(
-                        plan_id=plan.id,
-                        category_id=college_data.get('category_id'),
-                        group_id=college_data.get('group_id'),
-                        volunteer_index=college_data.get('volunteer_index'),
-                        college_id=college_data.get('college_id'),
-                        college_name=college_data.get('college_name'),
-                        college_group_id=college_data.get('college_group_id'),
-                        score_diff=college_data.get('score_diff'),
-                        prediction_score=college_data.get('prediction_score'),
-                        recommend_type=college_data.get('recommend_type', VolunteerCollege.RECOMMEND_PLANNER),
-                        ai_analysis=college_data.get('ai_analysis', ''),
-                        area_name=college_data.get('area_name'),
-                        group_name=college_data.get('group_name'),
-                        min_tuition=college_data.get('min_tuition'),
-                        max_tuition=college_data.get('max_tuition'),
-                        min_score=college_data.get('min_score'),
-                        plan_number=college_data.get('plan_number'),
-                        school_type_text=college_data.get('school_type_text'),
-                        subject_requirements=college_data.get('subject_requirements'),
-                        tese_text=college_data.get('tese_text'),
-                        teshu_text=college_data.get('teshu_text'),
-                        uncode=college_data.get('uncode'),
-                        nature=college_data.get('nature')
-                    )
-                    volunteer_colleges.append(college)
-                
-                # 5. 批量添加院校志愿
-                if volunteer_colleges:
-                    db.session.bulk_save_objects(volunteer_colleges)
-                    db.session.flush()  # 刷新会话以获取志愿院校的ID
-                
-                    # 构建院校ID映射，用于关联专业
-                    college_id_map = {}
-                    for idx, college in enumerate(volunteer_colleges):
-                        college_data = volunteer_data['colleges'][idx]
-                        college_id_map[f"{college_data['volunteer_index']}"] = college.id
-                    
-                    # 6. 处理专业志愿
-                    for idx, college_data in enumerate(volunteer_data.get('colleges', [])):
-                        college_id = college_id_map.get(f"{college_data['volunteer_index']}")
-                        if not college_id:
-                            continue
-                            
-                        for specialty_data in college_data.get('specialties', []):
-                            specialty = VolunteerSpecialty(
-                                volunteer_college_id=college_id,
-                                specialty_id=specialty_data.get('specialty_id'),
-                                specialty_code=specialty_data.get('specialty_code'),
-                                specialty_name=specialty_data.get('specialty_name'),
-                                specialty_index=specialty_data.get('specialty_index'),
-                                prediction_score=specialty_data.get('prediction_score'),
-                                plan_number=specialty_data.get('plan_number'),
-                                tuition=specialty_data.get('tuition'),
-                                remarks=specialty_data.get('remarks', ''),
-                                ai_analysis=specialty_data.get('ai_analysis', ''),
-                                fenshuxian_id=specialty_data.get('fenshuxian_id')
-                            )
-                            volunteer_specialties.append(specialty)
-                
-                # 7. 批量添加专业志愿
-                if volunteer_specialties:
-                    db.session.bulk_save_objects(volunteer_specialties)
-            
-            # 提交事务
-            db.session.commit()
-            
-            # 8. 返回创建的方案详情
-            return {
-                'plan': plan.to_dict(),
-                'college_count': len(volunteer_colleges),
-                'specialty_count': len(volunteer_specialties)
-            }
-            
-        except SQLAlchemyError as e:
-            # 回滚事务
-            db.session.rollback()
-            current_app.logger.error(f"创建志愿方案失败: {str(e)}")
-            raise
     
     @staticmethod
     def get_volunteer_plan(plan_id, include_details=True, category_id=None, group_id=None, volunteer_index=None):
@@ -195,8 +44,8 @@ class VolunteerPlanService:
         
         if include_details:
             # 构建基础查询
-            colleges_query = VolunteerCollege.query.filter_by(plan_id=plan_id)
-            
+            colleges_query = VolunteerCollege.query.filter_by(plan_id=plan_id).order_by(VolunteerCollege.volunteer_index)
+
             # 应用过滤条件
             if category_id is not None:
                 colleges_query = colleges_query.filter_by(category_id=category_id)
@@ -208,7 +57,7 @@ class VolunteerPlanService:
             # 执行查询获取结果
             colleges = colleges_query.all()
             college_ids = [college.id for college in colleges]
-            
+
             # 批量获取所有专业，避免N+1查询问题
             all_specialties = {}
             if college_ids:
@@ -232,198 +81,394 @@ class VolunteerPlanService:
             result['colleges'] = volunteer_colleges
         
         return result
-    
-    @staticmethod
-    def update_volunteer_plan(plan_id, update_data, create_new_version= False):
-        """
-        修改学生志愿方案
         
-        :param plan_id: 志愿方案ID
-        :param update_data: 更新数据，格式与create_volunteer_plan相同
-        :param create_new_version: 是否创建新版本，True则创建新版本，False则更新当前版本
-        :return: 更新后的志愿方案
+    @staticmethod
+    def update_volunteer_plan(plan_id, update_data):
+        """
+        修改学生志愿方案（创建新版本）
+        
+        :param plan_id: 当前志愿方案ID
+        :param update_data: 更新数据，包含修改的院校和专业信息
+        :return: 新的志愿方案
         """
         try:
-            plan = StudentVolunteerPlan.query.get_or_404(plan_id)
-            new_plan = None
-
-            # 1. 获取原方案
-            if create_new_version:
-                # 创建新版本的方案
-                new_plan = StudentVolunteerPlan(
-                    student_id=plan.student_id,
-                    planner_id=plan.planner_id,
-                    version=plan.version + 1,
-                    is_current=True,
-                    remarks=update_data.get('remarks')
-                )
-                
-                # 将所有当前版本设为非当前版本
-                db.session.query(StudentVolunteerPlan).filter(
-                    StudentVolunteerPlan.student_id == plan.student_id,
-                    StudentVolunteerPlan.is_current == True
-                ).update({"is_current": False}, synchronize_session=False)
-                
-                db.session.add(new_plan)
-                db.session.flush()
-                
-                plan_id = new_plan.id
-            else:
-                # 更新当前版本
-                if 'remarks' in update_data:
-                    plan.remarks = update_data.get('remarks')
-                plan_id = plan.id
+            # 1. 获取当前方案和学生信息
+            current_plan = StudentVolunteerPlan.query.get_or_404(plan_id)
+            student_id = current_plan.student_id
+            planner_id = current_plan.planner_id
             
-            # 2. 处理院校志愿更新
-            if 'colleges' in update_data:
-                # 获取所有现有的院校志愿ID
-                existing_colleges = {c.volunteer_index: c.id for c in 
-                                    VolunteerCollege.query.filter_by(plan_id=plan_id).all()}
+            # 使用 with_for_update() 锁定查询，防止并发问题
+            latest_plan = db.session.query(StudentVolunteerPlan).filter(
+                StudentVolunteerPlan.student_id == student_id
+            ).order_by(StudentVolunteerPlan.version.desc()).with_for_update().first()
+            
+            new_version = latest_plan.version + 1 if latest_plan else 1
+
+            # 2. 将所有当前版本设为非当前版本
+            db.session.query(StudentVolunteerPlan).filter(
+                StudentVolunteerPlan.student_id == student_id,
+                StudentVolunteerPlan.is_current == True
+            ).update({"is_current": False}, synchronize_session=False)
+            
+            # 3. 创建新版本的方案
+            new_plan = StudentVolunteerPlan(
+                student_id=student_id,
+                planner_id=planner_id,
+                version=new_version,
+                is_current=True,
+                remarks=update_data.get('remarks', f"从版本{current_plan.version}修改"),
+                generation_status=StudentVolunteerPlan.GENERATION_STATUS_SUCCESS,
+                generation_progress=100,
+                generation_message="手动修改志愿方案",
+                user_data_hash=current_plan.user_data_hash,
+                student_data_snapshot=current_plan.student_data_snapshot
+            )
+            db.session.add(new_plan)
+            db.session.flush()  # 刷新以获取新ID
+            new_plan_id = new_plan.id
+            
+            # 4. 识别前端修改了哪些批次(category_id和group_id组合)以及志愿组合键
+            modified_batches = set()
+            modified_combined_keys = set()
+            for college in update_data.get('colleges', []):
+                batch_key = (college.get('category_id'), college.get('group_id'))
+                modified_batches.add(batch_key)
+                combined_key = (college.get('group_id'), college.get('volunteer_index'))
+                modified_combined_keys.add(combined_key)
+            
+            # 5. 处理未修改的批次 - 直接从当前版本复制
+            if modified_batches:
+                # 获取当前版本中所有院校数据
+                current_colleges = VolunteerCollege.query.filter_by(plan_id=current_plan.id).all()
                 
-                colleges_to_add = []
-                colleges_to_update = []
-                college_indexes_to_keep = []
-                
-                # 处理更新和新增的院校志愿
-                for college_data in update_data.get('colleges', []):
-                    volunteer_index = college_data.get('volunteer_index')
-                    college_indexes_to_keep.append(volunteer_index)
-                    
-                    if volunteer_index in existing_colleges:
-                        # 更新现有院校志愿
-                        college_id = existing_colleges[volunteer_index]
-                        college = VolunteerCollege.query.get(college_id)
-                        for key, value in college_data.items():
-                            if key != 'specialties' and hasattr(college, key):
-                                setattr(college, key, value)
-                        # 强制设置recommend_type为规划师调整
-                        college.recommend_type = VolunteerCollege.RECOMMEND_PLANNER
-                        colleges_to_update.append(college)
-                    else:
-                        # 添加新院校志愿
-                        college = VolunteerCollege(
-                            plan_id=plan_id,
-                            category_id=college_data.get('category_id'),
-                            group_id=college_data.get('group_id'),
-                            volunteer_index=volunteer_index,
-                            college_id=college_data.get('college_id'),
-                            college_name=college_data.get('college_name'),
-                            college_group_id=college_data.get('college_group_id'),
-                            score_diff=college_data.get('score_diff'),
-                            prediction_score=college_data.get('prediction_score'),
-                            recommend_type=VolunteerCollege.RECOMMEND_PLANNER,
-                            ai_analysis=college_data.get('ai_analysis', ''),
-                            area_name=college_data.get('area_name'),
-                            group_name=college_data.get('group_name'),
-                            min_tuition=college_data.get('min_tuition'),
-                            max_tuition=college_data.get('max_tuition'),
-                            min_score=college_data.get('min_score'),
-                            plan_number=college_data.get('plan_number'),
-                            school_type_text=college_data.get('school_type_text'),
-                            subject_requirements=college_data.get('subject_requirements'),
-                            tese_text=college_data.get('tese_text'),
-                            teshu_text=college_data.get('teshu_text'),
-                            uncode=college_data.get('uncode'),
-                            nature=college_data.get('nature'),
+                # 找出未修改的批次的院校，且不在修改的组合键中
+                colleges_to_copy = []
+                for college in current_colleges:
+                    combined_key = (college.group_id, college.volunteer_index)
+                    if (college.category_id, college.group_id) not in modified_batches and combined_key not in modified_combined_keys:
+                        # 复制院校数据
+                        new_college = VolunteerCollege(
+                            plan_id=new_plan_id,
+                            category_id=college.category_id,
+                            group_id=college.group_id,
+                            volunteer_index=college.volunteer_index,
+                            college_id=college.college_id,
+                            college_name=college.college_name,
+                            college_group_id=college.college_group_id,
+                            score_diff=college.score_diff,
+                            prediction_score=college.prediction_score,
+                            recommend_type=college.recommend_type,
+                            ai_analysis=college.ai_analysis,
+                            area_name=college.area_name,
+                            group_name=college.group_name,
+                            min_tuition=college.min_tuition,
+                            max_tuition=college.max_tuition,
+                            min_score=college.min_score,
+                            plan_number=college.plan_number,
+                            school_type_text=college.school_type_text,
+                            subject_requirements=college.subject_requirements,
+                            tese_text=college.tese_text,
+                            teshu_text=college.teshu_text,
+                            uncode=college.uncode,
+                            nature=college.nature
                         )
-                        colleges_to_add.append(college)
+                        colleges_to_copy.append(new_college)
                 
-                # 批量添加新院校志愿
+                # 批量添加未修改的院校
+                if colleges_to_copy:
+                    db.session.bulk_save_objects(colleges_to_copy)
+                    db.session.flush()
+                    
+                    # 为复制的院校添加专业
+                    original_college_ids = [c.id for c in current_colleges 
+                                        if (c.category_id, c.group_id) not in modified_batches
+                                        and (c.group_id, c.volunteer_index) not in modified_combined_keys]
+                    
+                    # 使用组合键作为映射
+                    new_college_map = {(c.group_id, c.volunteer_index): c.id for c in VolunteerCollege.query.filter_by(plan_id=new_plan_id).all()}
+                    
+                    if original_college_ids:
+                        # 获取原院校的所有专业
+                        original_specialties = VolunteerSpecialty.query.filter(
+                            VolunteerSpecialty.volunteer_college_id.in_(original_college_ids)
+                        ).all()
+                        
+                        # 准备复制的专业数据
+                        specialties_to_copy = []
+                        for specialty in original_specialties:
+                            # 找到对应的新院校ID
+                            original_college = next((c for c in current_colleges if c.id == specialty.volunteer_college_id), None)
+                            if original_college:
+                                combined_key = (original_college.group_id, original_college.volunteer_index)
+                                if combined_key in new_college_map:
+                                    new_college_id = new_college_map[combined_key]
+                                    
+                                    # 复制专业数据
+                                    new_specialty = VolunteerSpecialty(
+                                        volunteer_college_id=new_college_id,
+                                        specialty_id=specialty.specialty_id,
+                                        specialty_code=specialty.specialty_code,
+                                        specialty_name=specialty.specialty_name,
+                                        specialty_index=specialty.specialty_index,
+                                        prediction_score=specialty.prediction_score,
+                                        plan_number=specialty.plan_number,
+                                        tuition=specialty.tuition,
+                                        remarks=specialty.remarks,
+                                        ai_analysis=specialty.ai_analysis,
+                                        fenshuxian_id=specialty.fenshuxian_id
+                                    )
+                                    specialties_to_copy.append(new_specialty)
+                        
+                        # 批量添加复制的专业
+                        if specialties_to_copy:
+                            db.session.bulk_save_objects(specialties_to_copy)
+                            db.session.flush()
+            
+            # 6. 处理修改的批次 - 使用前端数据并补充完整信息
+            if update_data.get('colleges'):
+                # 导入必要的类
+                from app.core.recommendation.repository import CollegeRepository
+                from app.services.student.student_data_service import StudentDataService
+                from app.models.zwh_xgk_fenzu_2025 import ZwhXgkFenzu2025
+                from app.models.zwh_xgk_yuanxiao_2025 import ZwhXgkYuanxiao2025
+                from app.models.zwh_xgk_fenshuxian_2025 import ZwhXgkFenshuxian2025
+                from app.models.zwh_areas import ZwhAreas
+                
+                # 获取推荐信息用于查询完整数据
+                student_data = StudentDataService.extract_college_recommendation_data(student_id)
+                subject_type = int(student_data.get('subject_type') or 1)
+                education_level = int(student_data.get('education_level') or 11)
+                student_subjects = student_data.get('student_subjects', {})  # 获取学生选科情况
+                
+                # 收集需要查询的ID
+                college_group_ids = []
+                
+                for college in update_data['colleges']:
+                    college_group_ids.append(college.get('college_group_id'))
+                
+                # 查询院校组详细信息
+                college_group_details = {}
+                if college_group_ids:
+                    # 查询院校详细信息和投档线信息
+                    college_groups = db.session.query(
+                        ZwhXgkFenzu2025.cgid,
+                        ZwhXgkFenzu2025.minxuefei,
+                        ZwhXgkFenzu2025.maxxuefei,
+                        ZwhXgkFenzu2025.cgname,
+                        ZwhXgkYuanxiao2025.tese,
+                        ZwhXgkYuanxiao2025.leixing,
+                        ZwhXgkYuanxiao2025.xingzhi,
+                        ZwhXgkYuanxiao2025.teshu,
+                        ZwhXgkYuanxiao2025.uncode,
+                        ZwhAreas.aname.label('area_name'),
+                        ZwhAreas.aid.label('area_id'),  # 添加地区ID用于获取完整路径
+                        ZwhXgkFenshuxian2025.yuce.label('prediction_score'),
+                        ZwhXgkFenshuxian2025.csbplannum.label('plan_number'),
+                    ).join(
+                        ZwhXgkYuanxiao2025,
+                        ZwhXgkFenzu2025.newcid == ZwhXgkYuanxiao2025.cid
+                    ).join(
+                        ZwhAreas,
+                        ZwhXgkYuanxiao2025.aid == ZwhAreas.aid
+                    ).outerjoin(
+                        ZwhXgkFenshuxian2025,
+                        db.and_(
+                            ZwhXgkFenshuxian2025.cgid == ZwhXgkFenzu2025.cgid,
+                            ZwhXgkFenshuxian2025.spid == 32767,
+                            ZwhXgkFenshuxian2025.suid == subject_type,
+                            ZwhXgkFenshuxian2025.newbid == education_level
+                        )
+                    ).filter(
+                        ZwhXgkFenzu2025.cgid.in_(college_group_ids)
+                    ).all()
+                    
+                    # 处理院校类型、特色等文本
+                    for group in college_groups:
+                        tese_text = CollegeRepository.convert_code_to_text(group.tese, 'tese')
+                        leixing_text = CollegeRepository.convert_code_to_text(group.leixing, 'leixing')
+                        teshu_text = CollegeRepository.convert_code_to_text(group.teshu, 'teshu')
+                        
+                        # 获取完整地区路径
+                        area_path = CollegeRepository.get_complete_area_path(group.area_id)
+                        complete_area_name = ''.join([area['aname'] for area in area_path[1:]]) if len(area_path) > 1 else group.area_name
+                        
+                        # xingzhi为1表示公办，否则为民办
+                        nature = '公办' if group.xingzhi == 1 else '民办'
+                        
+                        college_group_details[group.cgid] = {
+                            'min_tuition': group.minxuefei,
+                            'max_tuition': group.maxxuefei,
+                            'group_name': group.cgname,
+                            'area_name': complete_area_name,  # 使用完整地区名称
+                            'tese_text': tese_text,
+                            'leixing_text': leixing_text[0] if leixing_text else '',
+                            'teshu_text': teshu_text,
+                            'uncode': group.uncode,
+                            'nature': nature,  # 使用正确的学校性质值
+                            'subject_requirements': student_subjects,  # 使用学生选科情况
+                            'prediction_score': group.prediction_score,
+                            'plan_number': group.plan_number
+                        }
+                
+                # 处理专业详细信息 - 按(cgid, spid)组合查询
+                specialty_details = {}
+                
+                # 对每个院校和专业组合进行查询
+                for college in update_data['colleges']:
+                    college_group_id = int(college.get('college_group_id', 0))
+                    for specialty_data in college.get('specialties', []):
+                        specialty_id = int(specialty_data.get('specialty_id', 0))
+                        
+                        # 查询此专业在此院校组的信息
+                        specialty = db.session.query(
+                            ZwhXgkFenshuxian2025.id.label('fenshuxian_id'),
+                            ZwhXgkFenshuxian2025.tuitions,
+                            ZwhXgkFenshuxian2025.yuce,
+                            ZwhXgkFenshuxian2025.csbplannum
+                        ).filter(
+                            ZwhXgkFenshuxian2025.cgid == college_group_id,
+                            ZwhXgkFenshuxian2025.spid == specialty_id,
+                            ZwhXgkFenshuxian2025.suid == subject_type,
+                            ZwhXgkFenshuxian2025.newbid == education_level
+                        ).first()
+                        
+                        if specialty:
+                            key = (college_group_id, specialty_id)
+                            specialty_details[key] = {
+                                'fenshuxian_id': specialty.fenshuxian_id,
+                                'tuition': specialty.tuitions,
+                                'prediction_score': specialty.yuce,
+                                'plan_number': specialty.csbplannum
+                            }
+                
+                # 处理修改的院校数据
+                colleges_to_add = []
+                
+                for college_data in update_data['colleges']:
+                    category_id = int(college_data.get('category_id', 0))
+                    group_id = int(college_data.get('group_id', 0))
+                    volunteer_index = int(college_data.get('volunteer_index', 0))
+                    college_id = int(college_data.get('college_id', 0))
+                    college_group_id = int(college_data.get('college_group_id', 0))
+                    
+                    # 获取补充信息
+                    group_info = college_group_details.get(college_group_id, {})
+                    
+                    # 创建院校数据
+                    college = VolunteerCollege(
+                        plan_id=new_plan_id,
+                        category_id=category_id,
+                        group_id=group_id,
+                        volunteer_index=volunteer_index,
+                        college_id=college_id,
+                        college_name=college_data.get('college_name', ''),
+                        college_group_id=college_group_id,
+                        score_diff=college_data.get('score_diff', 0),
+                        prediction_score=group_info.get('prediction_score', 0),
+                        recommend_type=VolunteerCollege.RECOMMEND_PLANNER,
+                        min_tuition=group_info.get('min_tuition'),
+                        max_tuition=group_info.get('max_tuition'),
+                        min_score=group_info.get('prediction_score'),
+                        plan_number=group_info.get('plan_number'),
+                        area_name=group_info.get('area_name', ''),
+                        group_name=group_info.get('group_name', ''),
+                        school_type_text=group_info.get('leixing_text', ''),
+                        subject_requirements=group_info.get('subject_requirements'),  # 添加选科要求
+                        tese_text=group_info.get('tese_text'),
+                        teshu_text=group_info.get('teshu_text'),
+                        uncode=group_info.get('uncode', ''),
+                        nature=group_info.get('nature', '')  # 使用正确的学校性质
+                    )
+                    
+                    colleges_to_add.append(college)
+                
+                # 批量添加院校
                 if colleges_to_add:
                     db.session.bulk_save_objects(colleges_to_add)
-                
-                # 批量更新现有院校志愿
-                if colleges_to_update:
-                    db.session.bulk_save_objects(colleges_to_update, update_changed_only=True)
-                
-                # 删除不再需要的院校志愿
-                if college_indexes_to_keep:
-                    db.session.query(VolunteerCollege).filter(
-                        VolunteerCollege.plan_id == plan_id,
-                        ~VolunteerCollege.volunteer_index.in_(college_indexes_to_keep)
-                    ).delete(synchronize_session=False)
-                
-                db.session.flush()
-                
-                # 3. 处理专业志愿更新
-                # 获取所有院校志愿ID的映射
-                updated_colleges = {c.volunteer_index: c.id for c in 
-                                    VolunteerCollege.query.filter_by(plan_id=plan_id).all()}
-                
-                # 收集所有需要处理的专业志愿
-                specialties_to_process = []
-                for college_data in update_data.get('colleges', []):
-                    volunteer_index = college_data.get('volunteer_index')
-                    if volunteer_index in updated_colleges and 'specialties' in college_data:
-                        college_id = updated_colleges[volunteer_index]
-                        specialties_to_process.append((college_id, college_data['specialties']))
-                
-                # 批量处理每个院校的专业志愿
-                for college_id, specialties in specialties_to_process:
-                    # 获取现有的专业志愿
-                    existing_specialties = {s.specialty_index: s.id for s in 
-                                            VolunteerSpecialty.query.filter_by(volunteer_college_id=college_id).all()}
+                    db.session.flush()
                     
+                    # 查询新添加的院校ID - 使用组合键
+                    college_id_map = {
+                        (c.group_id, c.volunteer_index): c.id for c in VolunteerCollege.query.filter_by(plan_id=new_plan_id).all()
+                    }
+                    
+                    # 记录日志，检查志愿序号映射
+                    current_app.logger.info(f"院校ID映射: {college_id_map}")
+                    
+                    # 准备专业数据
                     specialties_to_add = []
-                    specialties_to_update = []
-                    specialty_indexes_to_keep = []
+                    processed_specialty_keys = set()  # 避免重复添加专业
                     
-                    # 处理更新和新增的专业志愿
-                    for specialty_data in specialties:
-                        specialty_index = specialty_data.get('specialty_index')
-                        specialty_indexes_to_keep.append(specialty_index)
+                    for college_data in update_data['colleges']:
+                        volunteer_index = int(college_data.get('volunteer_index', 0))
+                        group_id = int(college_data.get('group_id', 0))
+                        college_group_id = int(college_data.get('college_group_id', 0))
                         
-                        if specialty_index in existing_specialties:
-                            # 更新现有专业志愿
-                            specialty_id = existing_specialties[specialty_index]
-                            specialty = VolunteerSpecialty.query.get(specialty_id)
-                            for key, value in specialty_data.items():
-                                if hasattr(specialty, key):
-                                    setattr(specialty, key, value)
-                            specialties_to_update.append(specialty)
+                        # 使用组合键查找院校ID
+                        volunteer_key = (group_id, volunteer_index)
+                        current_app.logger.info(f"处理院校志愿组合键: {volunteer_key}")
+                        
+                        if volunteer_key in college_id_map:
+                            college_id = college_id_map[volunteer_key]
+                            current_app.logger.info(f"找到对应院校ID: {college_id}")
+                            
+                            # 先删除该院校下所有现有专业
+                            db.session.query(VolunteerSpecialty).filter(
+                                VolunteerSpecialty.volunteer_college_id == college_id
+                            ).delete(synchronize_session=False)
+                            db.session.flush()
+                            
+                            for specialty_data in college_data.get('specialties', []):
+                                specialty_id = int(specialty_data.get('specialty_id', 0))
+                                specialty_index = int(specialty_data.get('specialty_index', 1))
+                                
+                                # 生成唯一键，避免处理重复专业
+                                specialty_key = (college_id, specialty_index)
+                                if specialty_key in processed_specialty_keys:
+                                    continue
+                                    
+                                processed_specialty_keys.add(specialty_key)
+                                
+                                # 记录日志
+                                current_app.logger.info(f"处理专业ID: {specialty_id}, 院校ID: {college_id}")
+                                
+                                # 使用(cgid, spid)组合键获取专业信息
+                                cgid_spid_key = (college_group_id, specialty_id)
+                                specialty_info = specialty_details.get(cgid_spid_key, {})
+                                
+                                specialty = VolunteerSpecialty(
+                                    volunteer_college_id=college_id,
+                                    specialty_id=specialty_id,
+                                    specialty_code=specialty_data.get('specialty_code', ''),
+                                    specialty_name=specialty_data.get('specialty_name', ''),
+                                    specialty_index=specialty_index,
+                                    prediction_score=specialty_info.get('prediction_score', 0),
+                                    plan_number=specialty_info.get('plan_number', 0),
+                                    tuition=specialty_info.get('tuition', 0),
+                                    fenshuxian_id=specialty_info.get('fenshuxian_id', 0)
+                                )
+                                
+                                specialties_to_add.append(specialty)
                         else:
-                            # 添加新专业志愿
-                            specialty = VolunteerSpecialty(
-                                volunteer_college_id=college_id,
-                                specialty_id=specialty_data.get('specialty_id'),
-                                specialty_code=specialty_data.get('specialty_code'),
-                                specialty_name=specialty_data.get('specialty_name'),
-                                specialty_index=specialty_index,
-                                prediction_score=specialty_data.get('prediction_score'),
-                                plan_number=specialty_data.get('plan_number'),
-                                tuition=specialty_data.get('tuition'),
-                                remarks=specialty_data.get('remarks', ''),
-                                ai_analysis=specialty_data.get('ai_analysis', ''),
-                                fenshuxian_id=specialty_data.get('fenshuxian_id')
-                            )
-                            specialties_to_add.append(specialty)
+                            current_app.logger.error(f"未找到志愿组合键 {volunteer_key} 的院校ID映射")
                     
-                    # 批量添加新专业志愿
+                    # 批量添加专业
                     if specialties_to_add:
                         db.session.bulk_save_objects(specialties_to_add)
-                    
-                    # 批量更新现有专业志愿
-                    if specialties_to_update:
-                        db.session.bulk_save_objects(specialties_to_update, update_changed_only=True)
-                    
-                    # 删除不再需要的专业志愿
-                    if specialty_indexes_to_keep:
-                        db.session.query(VolunteerSpecialty).filter(
-                            VolunteerSpecialty.volunteer_college_id == college_id,
-                            ~VolunteerSpecialty.specialty_index.in_(specialty_indexes_to_keep)
-                        ).delete(synchronize_session=False)
-            
+                        db.session.flush()
+                
+            # 7. 提交事务 - 只在所有操作完成后执行一次
             db.session.commit()
-                
-            # 返回更新后的方案
-            result_plan_id = new_plan.id if create_new_version else plan_id
-            return VolunteerPlanService.get_volunteer_plan(result_plan_id)
-                
-        except SQLAlchemyError as e:
+            
+            # 8. 返回新版本的方案
+            return VolunteerPlanService.get_volunteer_plan(new_plan_id)
+            
+        except Exception as e:
+            # 任何异常都回滚事务
             db.session.rollback()
             current_app.logger.error(f"更新志愿方案失败: {str(e)}")
-            raise
-        
+            raise    
+    
     @staticmethod
     def create_empty_plan(student_id, planner_id, remarks, user_data_hash=None, 
                         generation_status='pending', generation_progress=0, 
@@ -780,7 +825,224 @@ class VolunteerPlanService:
             db.session.rollback()
             current_app.logger.error(f"批量添加专业志愿失败: {str(e)}")
             raise
+
+    @staticmethod
+    def export_volunteer_plan_to_excel(plan_id):
+        """
+        将志愿方案导出为Excel文件，使用简单的斑马条纹样式，动态调整行高
         
+        :param plan_id: 志愿方案ID
+        :return: 生成的Excel文件路径
+        """
+        try:
+            import pandas as pd
+            import os
+            from datetime import datetime
+            from flask import current_app
+            import openpyxl
+            from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+            
+            # 获取志愿方案详情
+            plan_data = VolunteerPlanService.get_volunteer_plan(plan_id)
+            if not plan_data or 'colleges' not in plan_data:
+                return {
+                    'success': False,
+                    'error': "志愿方案数据不完整"
+                }
+            
+            # 创建存储目录
+            upload_folder = current_app.config.get('UPLOAD_FOLDER')
+            if not upload_folder:
+                # 如果配置中没有，使用默认路径
+                upload_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'uploads')
+                current_app.logger.warning(f"UPLOAD_FOLDER 配置缺失，使用默认路径: {upload_folder}")
+                
+            export_dir = os.path.join(upload_folder, 'exports')
+            os.makedirs(export_dir, exist_ok=True)
+            
+            # 生成文件名
+            timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+            filename = f"volunteer_plan_{plan_id}_{timestamp}.xlsx"
+            filepath = os.path.join(export_dir, filename)
+            
+            # 创建工作簿和工作表
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = "志愿方案"
+            
+            # 定义样式
+            header_fill = PatternFill(start_color="DDEBF7", end_color="DDEBF7", fill_type="solid")
+            header_font = Font(bold=True)
+            header_alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+            
+            # 斑马条纹样式 - 简单的浅灰色
+            light_gray_fill = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
+            
+            thin_border = Side(border_style="thin", color="000000")
+            border = Border(left=thin_border, right=thin_border, top=thin_border, bottom=thin_border)
+            
+            # 设置左对齐但带有一定缩进的样式
+            left_alignment_with_indent = Alignment(horizontal='left', vertical='center', wrap_text=True, indent=1)
+            center_alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+            
+            # 辅助函数：计算文本行数
+            def count_lines(text):
+                if not text:
+                    return 1
+                return text.count('\n') + 1
+            
+            # 辅助函数：根据内容计算行高
+            def calculate_row_height(text, base_height=15, margin=10):
+                lines = count_lines(text)
+                return base_height * lines + margin
+            
+            # 添加表头
+            headers = ["序号", "学校信息", "专业信息", "建议"]
+            for col_idx, header in enumerate(headers, 1):
+                cell = ws.cell(row=1, column=col_idx)
+                cell.value = header
+                cell.fill = header_fill
+                cell.font = header_font
+                cell.alignment = header_alignment
+                cell.border = border
+            
+            # 设置表头行高
+            ws.row_dimensions[1].height = 25
+            
+            # 列宽设置
+            ws.column_dimensions['A'].width = 10  # 序号列
+            ws.column_dimensions['B'].width = 40  # 学校信息列
+            ws.column_dimensions['C'].width = 60  # 专业信息列
+            ws.column_dimensions['D'].width = 15  # 同意调剂列
+            
+            # 填充数据
+            row_idx = 2
+            for i, college in enumerate(plan_data['colleges']):
+                # 使用简单的浅灰色/白色交替
+                use_gray = (i % 2 == 0)
+                
+                # 根据志愿序号确定志愿名称
+                volunteer_index = college.get('volunteer_index', 0)
+                volunteer_name = f"第{volunteer_index}志愿"
+                
+                # 院校信息 - 为确保内容格式一致，使用每行两个空格的缩进
+                school_info = f"名称: {college.get('college_name', '')}\n"
+                school_info += f"代码: {college.get('college_id', '')}  性质: {college.get('nature', '公办')}\n"
+                
+                # 标签，如果有特色文本，用第一个特色作为标签
+                tese_text = college.get('tese_text', [])
+                tag = tese_text[0] if tese_text and isinstance(tese_text, list) and len(tese_text) > 0 else "硕博点"
+                school_info += f"标签: {tag}\n"
+                
+                school_info += f"类型: {college.get('school_type_text', '')}\n"
+                school_info += f"参考分数: {college.get('min_score', '')} ~ {college.get('prediction_score', '')}\n"
+                school_info += f"属地: {college.get('area_name', '')}\n"
+                
+                # 获取选科要求
+                subject_reqs = college.get('subject_requirements', {})
+                subjects = []
+                if subject_reqs:
+                    if subject_reqs.get('wu') == 1:
+                        subjects.append("物理")
+                    if subject_reqs.get('hua') == 1:
+                        subjects.append("化学")
+                    if subject_reqs.get('sheng') == 1:
+                        subjects.append("生物")
+                    if subject_reqs.get('shi') == 1:
+                        subjects.append("历史")
+                    if subject_reqs.get('di') == 1:
+                        subjects.append("地理")
+                    if subject_reqs.get('zheng') == 1:
+                        subjects.append("政治")
+                
+                subject_text = "、".join(subjects) if subjects else "物理、化学"
+                school_info += f"限报: {subject_text}"
+                
+                # 专业信息
+                specialties = college.get('specialties', [])
+                
+                # 构建专业信息文本
+                specialty_info = ""
+                if specialties:
+                    for sp_idx, specialty in enumerate(specialties):
+                        specialty_name = specialty.get('specialty_name', '')
+                        specialty_index = specialty.get('specialty_index', sp_idx + 1)
+                        plan_number = specialty.get('plan_number', 0)
+                        tuition = specialty.get('tuition', 0)
+
+                        if sp_idx > 0:
+                            specialty_info += "\n"
+                        specialty_info += f"{specialty_index}: {specialty_name} [{plan_number} / {tuition}]"
+                
+                # 计算所需的行高 - 比较学校信息和专业信息，取较大者
+                school_lines = count_lines(school_info)
+                specialty_lines = count_lines(specialty_info) if specialty_info else 1
+                max_lines = max(school_lines, specialty_lines)
+                
+                # 计算最终行高 - 每行16像素 + 10像素边距
+                row_height = 16 * max_lines + 15
+                
+                # 设置行高
+                ws.row_dimensions[row_idx].height = row_height
+                
+                # 序号单元格
+                cell = ws.cell(row=row_idx, column=1)
+                cell.value = volunteer_name
+                cell.alignment = center_alignment
+                cell.border = border
+                if use_gray:
+                    cell.fill = light_gray_fill
+                
+                # 学校信息单元格
+                cell = ws.cell(row=row_idx, column=2)
+                cell.value = school_info
+                cell.alignment = left_alignment_with_indent
+                cell.border = border
+                if use_gray:
+                    cell.fill = light_gray_fill
+                
+                # 专业信息单元格
+                cell = ws.cell(row=row_idx, column=3)
+                cell.value = specialty_info
+                cell.alignment = left_alignment_with_indent
+                cell.border = border
+                if use_gray:
+                    cell.fill = light_gray_fill
+                
+                # 同意调剂单元格
+                # 根据类别确定建议
+                category_id = college.get('category_id')
+                if category_id:
+                    recommendation = "冲" if category_id == 1 else ("稳" if category_id == 2 else "保")
+                else:
+                    recommendation = "冲"
+                    
+                cell = ws.cell(row=row_idx, column=4)
+                cell.value = recommendation
+                cell.alignment = center_alignment
+                cell.border = border
+                if use_gray:
+                    cell.fill = light_gray_fill
+                
+                # 移动到下一行
+                row_idx += 1
+            
+            # 保存Excel文件
+            wb.save(filepath)
+            
+            return {
+                'success': True,
+                'filename': filename,
+                'filepath': filepath,
+                'url': f"/uploads/exports/{filename}"
+            }
+            
+        except Exception as e:
+            current_app.logger.error(f"导出志愿方案Excel失败: {str(e)}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
 
 def ai_select_college_ids(filtered_colleges, user_info, recommendation_data, is_first=False):
     """
@@ -806,8 +1068,7 @@ def ai_select_college_ids(filtered_colleges, user_info, recommendation_data, is_
             current_app.logger.info("学生有高考成绩，使用AI推荐")
             return ai_recommend_with_score(filtered_colleges, user_info)
         elif latest_mock_score:
-            # 有模考成绩，使用模考成绩推荐
-            current_app.logger.info(f"学生使用最新模考成绩 {latest_mock_score} 进行推荐")
+
             return fallback_recommendation(filtered_colleges)
         else:
             # 没有任何成绩，使用备选方案

@@ -61,7 +61,7 @@ class VolunteerCollege(Base):
     RECOMMEND_PLANNER = 'planner'   # 规划师调整
     
     # 基础字段继承自Base模型(id, created_at, updated_at)
-    plan_id = db.Column(db.Integer, db.ForeignKey('student_volunteer_plans.id'), nullable=False, comment='志愿方案ID')
+    plan_id = db.Column(db.Integer, db.ForeignKey('student_volunteer_plans.id', ondelete='CASCADE'), nullable=False, comment='志愿方案ID')
     category_id = db.Column(db.Integer, nullable=False, comment='类别ID(1:冲, 2:稳, 3:保)')
     group_id = db.Column(db.Integer, nullable=False, comment='志愿段ID(1-12)')
     volunteer_index = db.Column(db.Integer, nullable=False, comment='志愿在方案中的序号(1-48)')
@@ -91,7 +91,7 @@ class VolunteerCollege(Base):
     __table_args__ = (
         db.Index('idx_plan', 'plan_id'),
         db.Index('idx_category_group', 'plan_id', 'category_id', 'group_id'),
-        db.UniqueConstraint('plan_id', 'volunteer_index', name='unique_volunteer_index'),
+        db.UniqueConstraint('plan_id', 'group_id', 'volunteer_index', name='unique_volunteer_index'),
     )
     
     def to_dict(self, include_specialties=False):
@@ -136,7 +136,7 @@ class VolunteerSpecialty(Base):
     __tablename__ = 'volunteer_specialties'
     
     # 基础字段继承自Base模型(id, created_at, updated_at)
-    volunteer_college_id = db.Column(db.Integer, db.ForeignKey('volunteer_colleges.id'), nullable=False, comment='志愿ID')
+    volunteer_college_id = db.Column(db.Integer, db.ForeignKey('volunteer_colleges.id', ondelete='CASCADE'), nullable=False, comment='志愿ID')
     specialty_id = db.Column(db.Integer, nullable=False, comment='专业ID')
     specialty_code = db.Column(db.String(50), comment='专业代码')
     specialty_name = db.Column(db.String(100), nullable=False, comment='专业名称')
@@ -186,7 +186,7 @@ class VolunteerCategoryAnalysis(Base):
     STATUS_FAILED = 'failed'         # 分析失败
     
     # 基础字段继承自Base模型(id, created_at, updated_at)
-    plan_id = db.Column(db.Integer, db.ForeignKey('student_volunteer_plans.id'), nullable=False, comment='志愿方案ID')
+    plan_id = db.Column(db.Integer, db.ForeignKey('student_volunteer_plans.id', ondelete='CASCADE'), nullable=False, comment='志愿方案ID')
     category_id = db.Column(db.Integer, nullable=False, comment='类别ID(1:冲, 2:稳, 3:保)')
     analysis_content = db.Column(db.Text, comment='AI分析内容')
     status = db.Column(db.String(20), default=STATUS_PENDING, comment='分析状态')

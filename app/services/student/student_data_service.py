@@ -50,10 +50,10 @@ class StudentDataService:
         
         # 9. 确定教育层次 (11-本科，12-专科)
         education_level = StudentDataService._determine_education_level(
-            student_score and student_score > 0 or mock_exam_score, 
+            student_score if (student_score and student_score > 0) else mock_exam_score,
             subject_type, 
         )
-
+        print('学历层次', education_level)
         # 组织返回数据
         result = {
             'student_id': student.id,
@@ -232,30 +232,52 @@ class StudentDataService:
     @staticmethod
     def _parse_tuition_range(tuition_range_str):
         """
-        解析学费范围字符串为具体的数值范围
+        解析学费范围字符串为具体的数值范围，支持中文数字（一、二、三等）+万
         
-        :param tuition_range_str: 学费范围字符串，如"1-2万,2-3万,3-5万,8万以上"
+        :param tuition_range_str: 学费范围字符串，如"1-2万,2-3万"或"一万-二万,二万-三万"
         :return: 学费范围列表，格式为[(min1, max1), (min2, max2), ...]
         """
         if not tuition_range_str:
             return []
         
+        # 中文数字映射
+        chinese_num_map = {
+            '一': 1, '二': 2, '三': 3, '四': 4, '五': 5,
+            '六': 6, '七': 7, '八': 8, '九': 9, '十': 10,
+            '两': 2  # 特殊处理"两"
+        }
+        
+        # 简化的中文数字转换，只处理单个数字
+        def convert_to_number(value_str):
+            # 如果是中文数字，转换为阿拉伯数字
+            if value_str in chinese_num_map:
+                return chinese_num_map[value_str]
+            # 否则尝试直接转换为浮点数
+            try:
+                return float(value_str)
+            except (ValueError, TypeError):
+                return 0
+        
         result = []
         ranges = [r.strip() for r in tuition_range_str.split(',')]
         
         for range_str in ranges:
+            # 统一替换中文"到"为"-"
+            range_str = range_str.replace('到', '-')
+            
             if "万以内" in range_str:
                 # 处理"X万以内"的情况
                 try:
-                    max_value = float(range_str.replace('万以内', '').strip()) * 10000
+                    value_str = range_str.replace('万以内', '').strip()
+                    max_value = convert_to_number(value_str) * 10000
                     result.append((0, int(max_value)))
                 except (ValueError, TypeError):
                     continue
             elif "万以上" in range_str:
                 # 处理"X万以上"的情况
                 try:
-                    min_value = float(range_str.replace('万以上', '').strip()) * 10000
-                    # 使用一个足够大的值作为上限，或者使用None表示无上限
+                    value_str = range_str.replace('万以上', '').strip()
+                    min_value = convert_to_number(value_str) * 10000
                     result.append((int(min_value), None))
                 except (ValueError, TypeError):
                     continue
@@ -263,8 +285,11 @@ class StudentDataService:
                 # 处理"X-Y万"的情况
                 try:
                     parts = range_str.replace('万', '').split('-')
-                    min_value = float(parts[0].strip()) * 10000
-                    max_value = float(parts[1].strip()) * 10000
+                    min_str = parts[0].strip()
+                    max_str = parts[1].strip()
+                    
+                    min_value = convert_to_number(min_str) * 10000
+                    max_value = convert_to_number(max_str) * 10000
                     result.append((int(min_value), int(max_value)))
                 except (ValueError, TypeError, IndexError):
                     continue
