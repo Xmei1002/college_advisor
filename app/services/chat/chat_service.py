@@ -414,10 +414,10 @@ class ChatService:
             conversation.last_message_time = datetime.now()
             db.session.commit()
             
-            # 新会话时，更新会话标题
+            
             if conversation_id:
                 yield json.dumps({"type": "end", "title": conversation.title})
-            else:
+            else: # 新会话时，更新会话标题
                 if task_result is not None and task_result.ready():
                     result = task_result.get()
                     title = result.get("title") if result else f"新会话-{conversation.id}"
