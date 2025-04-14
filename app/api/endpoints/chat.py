@@ -89,6 +89,8 @@ def get_conversation_messages(args, conversation_id):
     
     # 获取会话
     conversation = ChatService.get_conversation(conversation_id)
+    if not conversation:
+        return APIResponse.error("会话不存在", code=404)
     
     # 验证权限
     if conversation.planner_id != current_user.id:
@@ -298,10 +300,41 @@ def get_predefined_questions(args):
         questions = [{'id': i+1, 'content': q, 'type': 'change_strategy'} 
                     for i, q in enumerate(CHANGE_STRATEGY_QUESTIONS)]
     elif question_type == "volunteer":
-        questions = [{'id': i+1, 'content': q, 'type': 'analyzing_plan'} 
+        questions = [{'id': i+1, 'content': q, 'type': 'volunteer'} 
                     for i, q in enumerate(ANALYZING_PLAN_QUESTIONS)]
     questions = random.sample(questions, count)
     return APIResponse.success(
         data={'questions': questions},
         message="获取预设问题成功"
+    )
+
+@chat_bp.route('/<int:conversation_id>/title', methods=['GET'])
+@chat_bp.response(200, APISuccessSchema)
+@jwt_required()
+@api_error_handler
+def get_conversation_title(conversation_id):
+    """
+    获取会话标题
+    
+    根据会话ID获取会话的标题信息
+    """
+    current_user_id = get_jwt_identity()
+    current_user = User.query.get_or_404(current_user_id)
+    is_planner = current_user.user_type == User.USER_TYPE_PLANNER
+    if not is_planner:
+        return APIResponse.error("无权限访问该接口", code=403)
+    
+    # 获取会话
+    conversation = ChatService.get_conversation(conversation_id)
+    if not conversation:
+        return APIResponse.error("会话不存在", code=404)
+    
+    # 验证权限
+    if conversation.planner_id != current_user.id:
+        return APIResponse.error("无权访问此会话", code=403)
+    
+    # 返回会话标题
+    return APIResponse.success(
+        data={"id": conversation.id, "title": conversation.title},
+        message="获取会话标题成功"
     )

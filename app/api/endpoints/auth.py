@@ -100,7 +100,7 @@ def verify_code(data):
 
 @auth_bp.route('/register', methods=['POST'])
 @auth_bp.arguments(StudentRegisterSchema)
-@auth_bp.response(201, AuthResponseSchema)
+@auth_bp.response(200, AuthResponseSchema)
 @api_error_handler
 def register(data):
     """
@@ -134,7 +134,7 @@ def register(data):
     return APIResponse.success(
         data=tokens,
         message="注册成功",
-        code=201
+        code=200
     )
 
 @auth_bp.route('/login', methods=['POST'])
@@ -171,7 +171,7 @@ def login(data):
 
 @auth_bp.route('/planner', methods=['POST'])
 @auth_bp.arguments(CreatePlannerSchema)
-@auth_bp.response(201, AuthResponseSchema)
+@auth_bp.response(200, AuthResponseSchema)
 # @jwt_required()
 @api_error_handler
 def create_planner(data):
@@ -204,7 +204,7 @@ def create_planner(data):
     return APIResponse.success(
         data=tokens,
         message="规划师账号创建成功",
-        code=201
+        code=200
     )
 
 @auth_bp.route('/me', methods=['GET'])

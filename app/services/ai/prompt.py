@@ -166,7 +166,7 @@ CHANGE_STU_CP_PROMPT = """
 
 以下是数据库中的字段说明：
 - preferred_locations: 意向地域，多个地区以逗号分隔，如"北京,上海,广州"
-- tuition_range: 学费范围，如"1万以内"、"1-2万"等
+- tuition_range: 学费范围，如"1万以内","1-2万"等
 - preferred_majors: 意向专业，多个专业以逗号分隔，如"计算机科学,软件工程,人工智能"
 - school_types: 学校类型，如"985,211,双一流"
 - preferred_schools: 意向学校，多个学校以逗号分隔，如"北京大学,清华大学,浙江大学" 
@@ -190,7 +190,7 @@ CHANGE_STU_CP_PROMPT = """
   "confirmation_message": "给用户的确认消息，详细说明做了什么修改及建议，并询问用户要继续修改还是生成重新生成志愿表"
 }}
 
-如果用户是要重新生成志愿表，请返回以下JSON格式：
+当用户明确要重新生成志愿表时，请返回以下JSON格式：
 {{
    "restart_generation": "true"
 }}
@@ -224,7 +224,7 @@ CHANGE_STU_CP_PROMPT = """
 
 ANALYZING_PLAN_PROMPT = """
 你是一位资深的高考志愿填报规划专家，拥有丰富的招生政策和专业发展趋势分析经验。
-请根据根据用户问题，解答用户的疑问。
+请结合上述文档内容和自身知识，给用户提供回答。
 """
 
 GENERATE_CONVERSATION_TITLE_PROMPT = """

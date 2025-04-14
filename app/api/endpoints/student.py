@@ -29,7 +29,7 @@ from app.api.schemas.student import (
 
 @student_bp.route('/student-data', methods=['POST'])
 @student_bp.arguments(CombinedStudentDataSchema)
-@student_bp.response(201, CombinedStudentResponseSchema)
+@student_bp.response(200, CombinedStudentResponseSchema)
 @jwt_required()
 @api_error_handler
 def create_student_data(data):
@@ -137,9 +137,9 @@ def create_student_data(data):
         user_data_hash = calculate_user_data_hash(student_data)
         generate_volunteer_plan_task.delay(student.id, planner_id, user_data_hash, is_first=True)
     
-    # 确定响应状态码：如果是新创建的学生档案或学业记录，则返回201，否则返回200
+    # 确定响应状态码：如果是新创建的学生档案或学业记录，则返回200，否则返回200
     if not existing_profile or not existing_record:
-        code = 201
+        code = 200
         message = "学生信息和学业记录创建成功"
     else:
         code = 200
@@ -157,7 +157,7 @@ def create_student_data(data):
 # 可以保留原有的两个接口以支持单独更新功能，但是在文档中推荐使用新接口
 @student_bp.route('/profile', methods=['POST'])
 @student_bp.arguments(StudentProfileSchema)
-@student_bp.response(201, StudentResponseSchema)
+@student_bp.response(200, StudentResponseSchema)
 @jwt_required()
 @api_error_handler
 def create_student_profile(data):
@@ -216,7 +216,7 @@ def create_student_profile(data):
         
         student.save()
         message = "学生信息创建成功"
-        code = 201
+        code = 200
     has_plan = StudentVolunteerPlan.query.filter_by(student_id=student.id, is_current=True).first()
     if not has_plan:
         planner_id = user.planner_id
@@ -255,7 +255,7 @@ def get_student_profile():
 
 @student_bp.route('/academic-record', methods=['POST'])
 @student_bp.arguments(AcademicRecordSchema)
-@student_bp.response(201, AcademicRecordResponseSchema)
+@student_bp.response(200, AcademicRecordResponseSchema)
 @jwt_required()
 @api_error_handler
 def create_academic_record(data):
@@ -309,7 +309,7 @@ def create_academic_record(data):
         
         academic_record.save()
         message = "学业记录创建成功"
-        code = 201
+        code = 200
     
     return APIResponse.success(
         data=academic_record.to_dict(),

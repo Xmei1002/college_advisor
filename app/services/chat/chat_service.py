@@ -247,7 +247,7 @@ class ChatService:
                 
             formatted_messages.append({
                 "role": role,
-                "content": message.content
+                "content": message.content if message.content.strip() else "[空消息]"
             })
         return formatted_messages
     
@@ -265,13 +265,15 @@ class ChatService:
         :yield: AI回复内容块
         """
         try:
-            logger.info(f"学生ID: {student_id}, 规划师ID: {planner_id}, 会话类型: {conversation_type}, 发送者ID: {sender_id}, 消息内容: {message_content}")
             # 确定发送者角色
-            sender_role = Message.ROLE_PLANNER if sender_id == planner_id else Message.ROLE_STUDENT
-            
+            sender_role = Message.ROLE_PLANNER
+            logger.info(f"学生ID: {student_id}, 规划师ID: {planner_id}, 会话类型: {conversation_type}, 发送者ID: {sender_id}, 消息内容: {message_content}, 角色: {sender_role}")
+            task_result = None
             if conversation_id:
             # 查找或创建会话
-                conversation = Conversation.query.filter_by(id = conversation_id).first()  
+                conversation = Conversation.query.filter_by(id = conversation_id).first() 
+                if not conversation:
+                    raise ValueError("会话不存在")
             else:
                 from app.tasks.volunteer_tasks import generate_conversation_title_task
                 conversation = cls.create_conversation(
@@ -279,8 +281,8 @@ class ChatService:
                     planner_id=planner_id,
                     conversation_type=conversation_type
                 )
-                generate_conversation_title_task.delay(conversation.id, message_content)
-
+                task_result = generate_conversation_title_task.delay(conversation.id, message_content)
+                
             # 获取最近消息作为上下文
             recent_messages = cls.get_recent_messages(conversation.id)
             formatted_history = cls.format_messages_for_ai(recent_messages)
@@ -381,7 +383,7 @@ class ChatService:
                             is_current=True,
                             generation_status=StudentVolunteerPlan.GENERATION_STATUS_SUCCESS
                         ).order_by(StudentVolunteerPlan.version.desc()).first()
-                        message = "已为您重新生成志愿表，请在“志愿方案中查看”。"
+                        message = "已为您重新生成志愿表，请在<志愿方案>中查看。"
                         # 如果存在最近方案且数据哈希相同，拒绝重新生成
                         if latest_plan and latest_plan.user_data_hash == current_hash:
                             message="用户数据未发生变化，无需重新生成志愿方案",
@@ -412,8 +414,17 @@ class ChatService:
             conversation.last_message_time = datetime.now()
             db.session.commit()
             
-            # 发送完成信号
-            yield json.dumps({"type": "end"})
+            # 新会话时，更新会话标题
+            if conversation_id:
+                yield json.dumps({"type": "end", "title": conversation.title})
+            else:
+                if task_result is not None and task_result.ready():
+                    result = task_result.get()
+                    title = result.get("title") if result else f"新会话-{conversation.id}"
+                else:
+                    title = f"新会话-{conversation.id}"
+                # 发送完成信号
+                yield json.dumps({"type": "end", "title": title})
             
         except Exception as e:
             # 记录错误
@@ -425,7 +436,7 @@ class ChatService:
             # 如果已创建AI消息，更新错误信息
             try:
                 if 'ai_message' in locals() and ai_message.id:
-                    ai_message.content = f"生成回复时出错: {str(e)}"
+                    ai_message.content = "Error"
                     db.session.commit()
             except:
                 pass

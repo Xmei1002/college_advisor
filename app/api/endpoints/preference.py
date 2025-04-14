@@ -26,7 +26,7 @@ from app.api.schemas.preference import (
 
 @preference_bp.route('/college', methods=['POST'])
 @preference_bp.arguments(CollegePreferenceBaseSchema)
-@preference_bp.response(201, CollegePreferenceResponseSchema)
+@preference_bp.response(200, CollegePreferenceResponseSchema)
 @jwt_required()
 @api_error_handler
 def create_college_preference(data):
@@ -66,7 +66,7 @@ def create_college_preference(data):
     return APIResponse.success(
         data=preference.to_dict(),
         message=message,
-        code=201 if not preference else 200
+        code=200 if not preference else 200
     )
 
 @preference_bp.route('/college/strategy', methods=['POST'])
@@ -135,7 +135,7 @@ def get_college_preference():
 
 @preference_bp.route('/career', methods=['POST'])
 @preference_bp.arguments(CareerPreferenceSchema)
-@preference_bp.response(201, CareerPreferenceResponseSchema)
+@preference_bp.response(200, CareerPreferenceResponseSchema)
 @jwt_required()
 @api_error_handler
 def create_career_preference(data):
@@ -175,7 +175,7 @@ def create_career_preference(data):
     return APIResponse.success(
         data=preference.to_dict(),
         message=message,
-        code=201 if not preference else 200
+        code=200 if not preference else 200
     )
 
 @preference_bp.route('/career', methods=['GET'])

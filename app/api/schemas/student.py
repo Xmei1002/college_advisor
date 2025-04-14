@@ -11,7 +11,7 @@ class StudentProfileSchema(Schema):
     school = fields.String(description="毕业学校")
     address = fields.String(description="家庭住址")
     candidate_number = fields.String(description="准考证号")
-    id_card_number = fields.String(description="身份证号")  # 新增字段
+    id_card_number = fields.String(allow_none=True,description="身份证号")  # 新增字段
     household_type = fields.String(required=True, validate=validate.OneOf(["农村户口", "城市户口"]), description="户籍类型")
     student_type = fields.String(validate=validate.OneOf(["应届生", "复读生"]), description="考生类型")
     

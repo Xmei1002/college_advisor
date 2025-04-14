@@ -14,6 +14,7 @@ VENV/
 dist/
 build/
 *.log
+uploads/
 
 # Flask specific
 instance/
