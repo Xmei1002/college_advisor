@@ -5,7 +5,7 @@ from app.extensions import celery
 from app.services.volunteer.plan_service import generate_complete_volunteer_plan
 from app.services.volunteer.volunteer_analysis_service import AIVolunteerAnalysisService
 from app.services.volunteer.ai_college_specialty_service import AICollegeSpecialtyAnalysisService
-from app.models.student_volunteer_plan import StudentVolunteerPlan
+from app.models.student_volunteer_plan import StudentVolunteerPlan, VolunteerCategoryAnalysis
 from app.extensions import db
 from app.services.ai.moonshot import MoonshotAI
 from app.services.volunteer.consultation_status_service import update_student_plan_status
@@ -188,3 +188,65 @@ def generate_conversation_title_task(self, conversation_id, message_content):
             return {"status": "error", "message": "生成的标题为空"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+@celery.task(bind=True)
+def analyze_volunteer_plan_task(self, plan_id):
+    """
+    异步分析整体志愿方案
+    
+    :param plan_id: 志愿方案ID
+    :return: 任务结果
+    """
+    task_id = self.request.id
+    current_app.logger.info(f"异步分析整体志愿方案任务开始，任务ID: {task_id}")
+    
+    try:
+        # 更新分析状态为处理中，使用VolunteerCategoryAnalysis表的category_id=0表示整体分析
+        plan_analysis = VolunteerCategoryAnalysis.query.filter_by(
+            plan_id=plan_id,
+            category_id=0
+        ).first()
+        
+        if not plan_analysis:
+            plan_analysis = VolunteerCategoryAnalysis(
+                plan_id=plan_id,
+                category_id=0,  # 0表示整体分析
+                status=VolunteerCategoryAnalysis.STATUS_PROCESSING
+            )
+            db.session.add(plan_analysis)
+        else:
+            plan_analysis.status = VolunteerCategoryAnalysis.STATUS_PROCESSING
+            
+        db.session.commit()
+        
+        # 执行分析
+        result = AIVolunteerAnalysisService.perform_volunteer_plan_analysis(plan_id)
+        
+        return {
+            'status': result.get('status', 'success'),
+            'message': result.get('message', '整体志愿方案分析完成'),
+            'plan_id': plan_id,
+            'analysis': result.get('analysis', None)
+        }
+    
+    except Exception as e:
+        current_app.logger.error(f"异步分析整体志愿方案失败: {str(e)}")
+        
+        try:
+            # 更新为失败状态
+            plan_analysis = VolunteerCategoryAnalysis.query.filter_by(
+                plan_id=plan_id,
+                category_id=0
+            ).first()
+            if plan_analysis:
+                plan_analysis.status = VolunteerCategoryAnalysis.STATUS_FAILED
+                plan_analysis.error_message = str(e)
+                db.session.commit()
+        except:
+            pass
+            
+        return {
+            'status': 'error',
+            'message': f'整体志愿方案分析失败: {str(e)}',
+            'plan_id': plan_id
+        }

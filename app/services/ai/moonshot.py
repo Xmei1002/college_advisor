@@ -3,7 +3,7 @@ import os
 from .prompt import (FILTER_COLLEGE_PROMPT, ANALYZING_CATEGORY_PROMPT, 
                      ANALYZING_COLLEGE_PROMPT, ANALYZING_SPECIALTY_PROMPT,
                      ANALYZING_STRATEGY_PROMPT,ANALYZING_SNAPSHOT_PROMPT,CHANGE_STU_CP_PROMPT,
-                     ANALYZING_PLAN_PROMPT,GENERATE_CONVERSATION_TITLE_PROMPT)
+                     ANALYZING_PLAN_PROMPT,GENERATE_CONVERSATION_TITLE_PROMPT,ANALYZING_FULL_PLAN_PROMPT)
 from flask import current_app
 import httpx
 from pathlib import Path
@@ -141,6 +141,11 @@ class MoonshotAI:
         return cls._call_api(user_input=user_input, temperature=temperature, response_format=response_format)
     
     @classmethod
+    def analyzing_full_plan(cls, user_info, volunteer_plan, temperature=0.3):
+        user_input = ANALYZING_FULL_PLAN_PROMPT.format(user_info=user_info, volunteer_plan=volunteer_plan)
+        return cls._call_api(user_input=user_input, temperature=temperature)
+    
+    @classmethod
     def analyzing_category(cls, user_info, simplified_colleges_json, category, temperature=0.3):
         user_input = ANALYZING_CATEGORY_PROMPT.format(user_info=user_info, college_info=simplified_colleges_json, category=category)
         return cls._call_api(user_input=user_input, temperature=temperature)
@@ -157,7 +162,8 @@ class MoonshotAI:
     
     @classmethod
     def analyzing_student_snapshots(cls, current_snapshot, previous_snapshot, temperature=0.3):
-        user_input = ANALYZING_SNAPSHOT_PROMPT.format(current_snapshot=current_snapshot, previous_snapshot=previous_snapshot)
+        response_format = {"type": "json_object"}  # 指定响应格式为JSON对象
+        user_input = ANALYZING_SNAPSHOT_PROMPT.format(current_snapshot=current_snapshot, previous_snapshot=previous_snapshot, response_format=response_format)
         return cls._call_api(user_input=user_input, temperature=temperature)
     
     @classmethod

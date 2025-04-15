@@ -297,3 +297,197 @@ class AIVolunteerAnalysisService:
                 "message": f"分析过程出错: {str(e)}",
                 "error_detail": error_trace
             }
+
+    @staticmethod
+    def get_simplified_volunteer_plan(plan_id):
+        """
+        获取简化的志愿方案数据，只包含院校基本信息
+        
+        :param plan_id: 志愿方案ID
+        :return: 简化后的志愿方案数据
+        """
+        # 获取方案中的所有院校
+        colleges = VolunteerCollege.query.filter_by(
+            plan_id=plan_id
+        ).order_by(
+            VolunteerCollege.category_id,
+            VolunteerCollege.volunteer_index
+        ).all()
+        
+        if not colleges:
+            return None
+            
+        # 按类别分组
+        simplified_plan = {
+            "冲刺志愿": [],
+            "稳妥志愿": [],
+            "保底志愿": []
+        }
+        
+        for college in colleges:
+            # 获取类别名称
+            category_name = AIVolunteerAnalysisService.CATEGORY_MAP.get(college.category_id)
+            if not category_name:
+                continue
+                
+            # 构建简化的院校信息
+            simplified_college = {
+                "院校名称": college.college_name,
+                "院校性质": college.nature,
+                "院校类型": college.school_type_text,
+                "所在地区": college.area_name,
+                "预测分数": college.prediction_score,
+                "分差": college.score_diff,
+                "志愿序号": college.volunteer_index
+            }
+            
+            # 添加到对应类别
+            simplified_plan[category_name].append(simplified_college)
+            
+        return simplified_plan
+
+    @staticmethod
+    def store_plan_analysis(plan_id, analysis_content, status=None, error_message=None):
+        """
+        存储整体志愿方案分析结果（使用VolunteerCategoryAnalysis表，category_id=0表示整体分析）
+        
+        :param plan_id: 志愿方案ID
+        :param analysis_content: 分析内容
+        :param status: 分析状态，默认为completed
+        :param error_message: 错误信息，当状态为failed时使用
+        :return: 是否成功
+        """
+        try:
+            # 如果未指定状态，默认为完成
+            if status is None:
+                status = VolunteerCategoryAnalysis.STATUS_COMPLETED
+                
+            # 查找现有分析记录，category_id=0表示整体分析
+            analysis = VolunteerCategoryAnalysis.query.filter_by(
+                plan_id=plan_id,
+                category_id=0
+            ).first()
+            
+            if analysis:
+                # 更新现有记录
+                analysis.status = status
+                
+                # 根据状态设置不同的字段
+                if status == VolunteerCategoryAnalysis.STATUS_COMPLETED:
+                    analysis.analysis_content = analysis_content
+                    analysis.analyzed_at = datetime.now(timezone.utc)
+                    analysis.error_message = None
+                elif status == VolunteerCategoryAnalysis.STATUS_FAILED:
+                    analysis.error_message = error_message
+                    analysis.analyzed_at = datetime.now(timezone.utc)
+            else:
+                # 创建新记录
+                analysis = VolunteerCategoryAnalysis(
+                    plan_id=plan_id,
+                    category_id=0,  # 0表示整体分析
+                    status=status
+                )
+                
+                # 根据状态设置不同的字段
+                if status == VolunteerCategoryAnalysis.STATUS_COMPLETED:
+                    analysis.analysis_content = analysis_content
+                    analysis.analyzed_at = datetime.now(timezone.utc)
+                elif status == VolunteerCategoryAnalysis.STATUS_FAILED:
+                    analysis.error_message = error_message
+                    analysis.analyzed_at = datetime.now(timezone.utc)
+                    
+                db.session.add(analysis)
+            
+            db.session.commit()
+            return True
+        except SQLAlchemyError as e:
+            db.session.rollback()
+            current_app.logger.error(f"存储整体志愿方案分析结果失败: {str(e)}")
+            return False
+    
+    @staticmethod
+    def perform_volunteer_plan_analysis(plan_id):
+        """
+        执行整体志愿方案分析
+        
+        :param plan_id: 志愿方案ID
+        :return: 分析结果
+        """
+        try:
+            # 1. 获取学生ID
+            plan = StudentVolunteerPlan.query.get_or_404(plan_id)
+            student_id = plan.student_id
+            
+            # 2. 获取学生数据
+            user_info = StudentDataService.generate_student_profile_text(student_id)
+            
+            # 3. 获取简化的志愿方案数据
+            volunteer_plan = AIVolunteerAnalysisService.get_simplified_volunteer_plan(plan_id)
+            
+            # 如果没有志愿数据，更新为失败状态并返回
+            if not volunteer_plan:
+                error_msg = "未找到志愿方案数据"
+                AIVolunteerAnalysisService.store_plan_analysis(
+                    plan_id=plan_id,
+                    analysis_content=None,
+                    status=VolunteerCategoryAnalysis.STATUS_FAILED,
+                    error_message=error_msg
+                )
+                return {
+                    "status": "error",
+                    "message": error_msg
+                }
+            else:
+                volunteer_plan = json.dumps(volunteer_plan, ensure_ascii=False)
+                
+            # 4. 调用AI分析
+            analysis_result = MoonshotAI.analyzing_full_plan(
+                user_info=user_info,
+                volunteer_plan=volunteer_plan
+            )
+            
+            # 5. 存储分析结果
+            success = AIVolunteerAnalysisService.store_plan_analysis(
+                plan_id=plan_id,
+                analysis_content=analysis_result
+            )
+            
+            if not success:
+                error_msg = "存储分析结果失败"
+                AIVolunteerAnalysisService.store_plan_analysis(
+                    plan_id=plan_id,
+                    analysis_content=None,
+                    status=VolunteerCategoryAnalysis.STATUS_FAILED,
+                    error_message=error_msg
+                )
+                return {
+                    "status": "error",
+                    "message": error_msg
+                }
+            
+            # 6. 返回成功
+            return {
+                "status": "success",
+                "message": "整体志愿方案分析完成",
+                "plan_id": plan_id,
+                "analysis": analysis_result  # 可选：返回分析内容
+            }
+            
+        except Exception as e:
+            import traceback
+            error_trace = traceback.format_exc()
+            current_app.logger.error(f"整体志愿方案分析失败: {str(e)}\n{error_trace}")
+            
+            # 更新为失败状态
+            AIVolunteerAnalysisService.store_plan_analysis(
+                plan_id=plan_id,
+                analysis_content=None,
+                status=VolunteerCategoryAnalysis.STATUS_FAILED,
+                error_message=str(e)
+            )
+            
+            return {
+                "status": "error",
+                "message": f"分析过程出错: {str(e)}",
+                "error_detail": error_trace
+            }

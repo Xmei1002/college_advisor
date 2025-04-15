@@ -10,8 +10,9 @@ from app.api.schemas.volunteer_analysis import (
   VolunteerCategorySchema, QueryAnalysisResultSchema, CollegeAnalysisSchema, SpecialtyAnalysisSchema
 )
 from app.models.student_volunteer_plan import VolunteerCollege, VolunteerSpecialty, VolunteerCategoryAnalysis
-from app.tasks.volunteer_tasks import analyze_volunteer_category_task, analyze_college_task, analyze_specialty_task
+from app.tasks.volunteer_tasks import analyze_volunteer_category_task, analyze_college_task, analyze_specialty_task, analyze_volunteer_plan_task
 from app.models.user import User
+from app.models.student_volunteer_plan import StudentVolunteerPlan
 from app.services.student.student_data_service import StudentDataService
 # 创建志愿方案蓝图
 volunteer_analysis_bp = Blueprint(
@@ -341,3 +342,89 @@ def batch_analyze_specialties():
         data={"task_count": task_count},
         message=f"已提交{task_count}个专业分析任务"
     )
+
+@volunteer_analysis_bp.route('/plan/<int:plan_id>/full-analysis', methods=['POST'])
+@jwt_required()
+@api_error_handler
+def create_plan_analysis(plan_id):
+    """
+    触发整体志愿方案分析
+    ---
+    为指定的志愿方案创建整体分析任务
+    """
+    current_user_id = get_jwt_identity()
+    
+    # 只有学生本人或其规划师可以分析
+    current_user = User.query.get_or_404(current_user_id)
+    if current_user.user_type != User.USER_TYPE_PLANNER:
+        return APIResponse.error("无权限访问该接口", code=403)
+
+    # 创建或更新分析状态，使用VolunteerCategoryAnalysis表，category_id=0表示整体分析
+    analysis = VolunteerCategoryAnalysis.query.filter_by(
+        plan_id=plan_id,
+        category_id=0
+    ).first()
+    
+    if not analysis:
+        analysis = VolunteerCategoryAnalysis(
+            plan_id=plan_id,
+            category_id=0,  # 0表示整体分析
+            status=VolunteerCategoryAnalysis.STATUS_PENDING
+        )
+        db.session.add(analysis)
+    else:
+        analysis.status = VolunteerCategoryAnalysis.STATUS_PENDING
+    
+    try:
+        db.session.commit()
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return APIResponse.error(str(e), code=500)
+    
+    # 异步执行分析任务
+    task = analyze_volunteer_plan_task.delay(plan_id)
+    
+    return APIResponse.success({
+        'task_id': task.id,
+        'plan_id': plan_id,
+        'status': 'pending',
+        'message': '整体志愿方案分析任务已创建'
+    })
+
+@volunteer_analysis_bp.route('/plan/<int:plan_id>/full-analysis', methods=['GET'])
+@jwt_required()
+@api_error_handler
+def get_plan_analysis(plan_id):
+    """
+    获取整体志愿方案分析结果
+    ---
+    返回指定志愿方案的整体分析结果
+    """
+    current_user_id = get_jwt_identity()
+    
+    # 只有学生本人或其规划师可以分析
+    current_user = User.query.get_or_404(current_user_id)
+    if current_user.user_type != User.USER_TYPE_PLANNER:
+        return APIResponse.error("无权限访问该接口", code=403)
+    
+    # 获取分析结果，使用VolunteerCategoryAnalysis表，category_id=0表示整体分析
+    analysis = VolunteerCategoryAnalysis.query.filter_by(
+        plan_id=plan_id,
+        category_id=0
+    ).first()
+    
+    if not analysis:
+        return APIResponse.error(message="未找到分析结果")
+    
+    # 返回结果
+    result = analysis.to_dict()
+    
+    # 处理分析状态
+    if analysis.status == VolunteerCategoryAnalysis.STATUS_PENDING:
+        return APIResponse.success(result, message="分析任务正在排队中")
+    elif analysis.status == VolunteerCategoryAnalysis.STATUS_PROCESSING:
+        return APIResponse.success(result, message="分析任务正在处理中")
+    elif analysis.status == VolunteerCategoryAnalysis.STATUS_FAILED:
+        return APIResponse.success(result, message=f"分析任务失败: {analysis.error_message}")
+    else:
+        return APIResponse.success(result, message="获取分析结果成功")

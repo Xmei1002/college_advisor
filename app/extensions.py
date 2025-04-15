@@ -5,6 +5,7 @@ from flask_socketio import SocketIO
 from flask_cors import CORS
 from celery import Celery
 from flask_smorest import Api as ApiSpec
+from flask_caching import Cache
 
 # 初始化扩展，但不绑定到特定应用
 db = SQLAlchemy()
@@ -14,6 +15,9 @@ socketio = SocketIO()
 cors = CORS()
 celery = Celery(__name__)
 api_spec = ApiSpec()
+
+# 初始化缓存
+cache = Cache()
 
 def init_celery(app=None):
     if app:
@@ -30,3 +34,11 @@ def init_celery(app=None):
                 
     celery.Task = ContextTask
     return celery
+
+def init_extensions(app):
+    """初始化所有扩展"""
+    # 初始化缓存
+    cache.init_app(app, config={
+        'CACHE_TYPE': 'simple',  # 使用简单的内存缓存
+        'CACHE_DEFAULT_TIMEOUT': 3600  # 默认缓存时间1小时
+    })

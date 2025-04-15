@@ -207,3 +207,57 @@ class RecommendationService:
         }
         
         return result, pagination
+
+    @staticmethod
+    def get_college_count_by_category_and_group(student_score, subject_type, education_level, 
+                                                category_id, group_id, student_subjects,
+                                                area_ids=None, specialty_types=None, 
+                                                mode='smart',
+                                                tese_types=None, leixing_types=None, teshu_types=None,
+                                                tuition_ranges=None):
+        """
+        获取指定类别和志愿段的院校数量（优化性能的方法）
+        
+        :param student_score: 学生分数
+        :param subject_type: 科别（1-文科/历史组，2-理科/物理组）
+        :param education_level: 学历层次（11-本科，12-专科）
+        :param category_id: 类别ID（1-冲，2-稳，3-保）
+        :param group_id: 志愿段ID（1-12，对应不同的志愿段）
+        :param student_subjects: 学生选科情况，字典格式如{'wu': 1, 'hua': 1, 'sheng': 2, 'shi': 2, 'di': 2, 'zheng': 2}
+        :param area_ids: 地区ID列表
+        :param specialty_types: 专业类型ID列表
+        :param mode: 分类模式（'smart','professional','free'）
+        :param tese_types: 学校特色筛选列表
+        :param leixing_types: 学校类型筛选列表
+        :param teshu_types: 特殊类型筛选列表
+        :param tuition_ranges: 学费范围列表，格式为[(min1, max1), (min2, max2), ...]
+        :return: 符合条件的院校专业组数量
+        """
+        # 参数预处理，确保area_ids和specialty_types为列表
+        area_ids = area_ids or []
+        specialty_types = specialty_types or []
+        tese_types = tese_types or []
+        leixing_types = leixing_types or []
+        teshu_types = teshu_types or []
+        tuition_ranges = tuition_ranges or []
+        education_level = education_level or 11  # 默认本科
+
+        # 1. 获取所有符合条件的专业组
+        college_groups = CollegeRepository.get_college_groups_by_category(
+            student_score=student_score,
+            subject_type=subject_type,
+            education_level=education_level,
+            category_id=category_id,
+            group_id=group_id,
+            student_subjects=student_subjects,
+            area_ids=area_ids,
+            specialty_types=specialty_types,
+            mode=mode,
+            tese_types=tese_types,
+            leixing_types=leixing_types,
+            teshu_types=teshu_types,
+            tuition_ranges=tuition_ranges
+        )
+        
+        # 2. 返回数量
+        return len(college_groups)

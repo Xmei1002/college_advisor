@@ -231,7 +231,7 @@ def update_volunteer_plan(data, plan_id):
     last_submit_time = session.get('last_update_time', 0)
     current_time = time.time()
     
-    # 如果两次提交间隔小于2秒，则认为是重复提交
+    # 如果两次提交间隔小于10秒，则认为是重复提交
     if current_time - last_submit_time < 10:
         return APIResponse.error("请勿频繁提交，请稍后再试", code=429)
     

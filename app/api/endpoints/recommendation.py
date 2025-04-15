@@ -17,7 +17,8 @@ recommendation_bp = Blueprint(
 )
 
 from app.api.schemas.recommendation import (
-    CategoryFilterSchema, CollegeCategoryResponseSchema,CategoryFilterSchemaByStuedntID, SpecialtiesRequestSchema
+    CategoryFilterSchema, CollegeCategoryResponseSchema,CategoryFilterSchemaByStuedntID, SpecialtiesRequestSchema,
+    CollegeStatsRequestSchema, CollegeStatsResponseSchema
 )
 
 # @recommendation_bp.route('/colleges-by-category', methods=['POST'])
@@ -105,13 +106,13 @@ def get_colleges_by_category(data):
     if not is_planner:
         return APIResponse.error("无权限访问该接口", code=403)
     
+    # 获取参数
     student_id = data['student_id']
-    # 从参数获取类别和志愿段相关信息
-    category_id = data.get('category_id', 1)  # 默认冲
-    group_id = data.get('group_id', 1)  # 默认第一组
+    category_id = data['category_id']
+    group_id = data['group_id']
     mode = data.get('mode', 'smart')
     page = data.get('page', 1)
-    per_page = data.get('per_page', 10)
+    per_page = data.get('per_page', 20)
     
     # 查找学生当前的志愿方案
     current_plan = StudentVolunteerPlan.query.filter_by(
@@ -119,22 +120,33 @@ def get_colleges_by_category(data):
         is_current=True
     ).first()
     
-    # 获取已选择的院校专业组ID及其对应的volunteer_index和volunteer_college_id
-    selected_college_map = {}
+    # 获取已选择的院校和专业信息
     volunteer_college_ids = []
+    selected_colleges_map = {}
+    selected_specialties_map = {}
+    
     if current_plan:
         # 获取当前志愿方案中的所有院校
-        selected_colleges = VolunteerCollege.query.filter_by(plan_id=current_plan.id).all()
-        # 创建院校专业组ID到volunteer_index的映射
+        selected_colleges = VolunteerCollege.query.filter_by(
+            plan_id=current_plan.id,
+            category_id=category_id,
+            group_id=group_id
+        ).all()
+        
+        # 按专业组ID和院校ID存储选择信息
         for college in selected_colleges:
-            selected_college_map[college.college_group_id] = {
-                'volunteer_index': college.volunteer_index,
-                'volunteer_college_id': college.id  # 保存VolunteerCollege表中的id
-            }
+            # 存储volunteer_college_id，用于后续查询专业
             volunteer_college_ids.append(college.id)
+            
+            # 按专业组ID和院校ID存储
+            key = (college.college_group_id, college.college_id)
+            selected_colleges_map[key] = {
+                'is_selected': True,
+                'volunteer_college_id': college.id,
+                'volunteer_index': college.volunteer_index
+            }
     
-    # 获取所有已选择院校的专业信息
-    selected_specialties_map = {}
+    # 如果有选择的院校，获取专业选择信息
     if volunteer_college_ids:
         selected_specialties = VolunteerSpecialty.query.filter(
             VolunteerSpecialty.volunteer_college_id.in_(volunteer_college_ids)
@@ -154,70 +166,83 @@ def get_colleges_by_category(data):
     # 从学生ID提取学生信息
     recommendation_data = StudentDataService.extract_college_recommendation_data(student_id)
     
-    # 调用服务获取推荐院校，不再传入exclude_group_ids参数
-    college_groups, pagination = RecommendationService.get_colleges_by_category_and_group(
-        student_score = recommendation_data['student_score'] if recommendation_data['student_score'] is not None and recommendation_data['student_score'] > 0 else recommendation_data['mock_exam_score'],
-        subject_type=recommendation_data['subject_type'],
-        education_level=recommendation_data['education_level'],
-        category_id=category_id,
-        group_id=group_id,
-        student_subjects=recommendation_data['student_subjects'],
-        area_ids=recommendation_data['area_ids'],
-        specialty_types=recommendation_data['specialty_types'],
-        mode=mode,
-        page=page,
-        per_page=per_page,
-        tese_types=recommendation_data.get('tese_types'),
-        leixing_types=recommendation_data.get('leixing_types'),
-        teshu_types=recommendation_data.get('teshu_types'),
-        tuition_ranges=recommendation_data.get('tuition_ranges'),
-        # 不传入exclude_group_ids参数，获取所有符合条件的院校
-    )
+    # 检查缓存逻辑
+    from app.extensions import cache
+    from app.utils.user_hash import calculate_user_data_hash
     
-    # 为每个院校专业组添加标记字段
+    # 获取当前学生数据的哈希值
+    current_hash = calculate_user_data_hash(recommendation_data)
+    
+    # 缓存键仅使用学生ID、类别ID和志愿段ID
+    cache_key = f"colleges:{student_id}:{category_id}:{group_id}"
+    
+    # 获取志愿方案中保存的用户数据哈希
+    cached_hash = None
+    if current_plan:
+        cached_hash = current_plan.user_data_hash
+    
+    # 尝试从缓存获取结果
+    cached_result = cache.get(cache_key)
+    college_groups = None
+    pagination = None
+    
+    # 如果缓存存在且学生数据哈希未变化，使用缓存的院校数据
+    if cached_result and cached_hash and cached_hash == current_hash:
+        college_groups, pagination = cached_result
+    else:
+        # 调用服务获取推荐院校
+        college_groups, pagination = RecommendationService.get_colleges_by_category_and_group(
+            student_score = recommendation_data['student_score'] if recommendation_data['student_score'] is not None and recommendation_data['student_score'] > 0 else recommendation_data['mock_exam_score'],
+            subject_type=recommendation_data['subject_type'],
+            education_level=recommendation_data['education_level'],
+            category_id=category_id,
+            group_id=group_id,
+            student_subjects=recommendation_data['student_subjects'],
+            area_ids=recommendation_data['area_ids'],
+            specialty_types=recommendation_data['specialty_types'],
+            mode=mode,
+            page=page,
+            per_page=per_page,
+            tese_types=recommendation_data.get('tese_types'),
+            leixing_types=recommendation_data.get('leixing_types'),
+            teshu_types=recommendation_data.get('teshu_types'),
+            tuition_ranges=recommendation_data.get('tuition_ranges')
+        )
+        
+        # 将结果存入缓存，有效期1天
+        cache.set(cache_key, (college_groups, pagination), timeout=86400)  # 24小时缓存
+    
+    # 为每个专业组添加选择状态信息
     for group in college_groups:
-        if group['cgid'] in selected_college_map:
-            group['is_selected'] = True
-            group['volunteer_index'] = selected_college_map[group['cgid']]['volunteer_index']
-            group['volunteer_college_id'] = selected_college_map[group['cgid']]['volunteer_college_id']
+        group_key = (group['cgid'], group['cid'])
+        group_selection = selected_colleges_map.get(group_key, {'is_selected': False})
+        
+        # 添加选择状态信息到院校
+        group['is_selected'] = group_selection.get('is_selected', False)
+        group['volunteer_college_id'] = group_selection.get('volunteer_college_id')
+        group['volunteer_index'] = group_selection.get('volunteer_index')
+        
+        # 为每个专业添加选择状态信息
+        if group['is_selected'] and group['volunteer_college_id'] in selected_specialties_map:
+            specialties_selection = selected_specialties_map[group['volunteer_college_id']]
             
-            # 获取该院校的专业选择映射
-            volunteer_college_id = group['volunteer_college_id']
-            specialty_map = selected_specialties_map.get(volunteer_college_id, {})
-            
-            # 标记该院校的专业列表
             for specialty in group['specialties']:
-                if specialty['spid'] in specialty_map:
-                    specialty['is_selected'] = True
-                    specialty['specialty_index'] = specialty_map[specialty['spid']]['specialty_index']
-                else:
-                    specialty['is_selected'] = False
-                    specialty['specialty_index'] = None
-        else:
-            group['is_selected'] = False
-            group['volunteer_index'] = None
-            group['volunteer_college_id'] = None
-            
-            # 未选择的院校，所有专业都标记为未选择
-            for specialty in group['specialties']:
-                specialty['is_selected'] = False
-                specialty['specialty_index'] = None
+                specialty_id = specialty['spid']
+                specialty_selection = specialties_selection.get(specialty_id, {'is_selected': False})
+                
+                # 添加选择状态信息到专业
+                specialty['is_selected'] = specialty_selection.get('is_selected', False)
+                specialty['specialty_index'] = specialty_selection.get('specialty_index')
     
-    # 先按原始逻辑排序（按score_diff降序）
-    college_groups = sorted(college_groups, key=lambda x: x['score_diff'], reverse=True)
-    
-    # 再按是否选择和volunteer_index排序（已选择的排前面）
-    sorted_college_groups = sorted(college_groups, key=lambda x: (
-        x['volunteer_index'] is None,  # 首先按是否有volunteer_index排序（False排在True前面）
-        x['volunteer_index'] if x['volunteer_index'] is not None else float('inf')  # 然后按volunteer_index排序
-    ))
+    # 根据是否选择和volunteer_index排序：已选择的排在前面，按volunteer_index升序
+    college_groups.sort(key=lambda x: (0 if x.get('is_selected') else 1, x.get('volunteer_index', float('inf'))))
     
     return APIResponse.pagination(
-        items=sorted_college_groups,
+        items=college_groups,
         total=pagination['total'],
         page=pagination['page'],
         per_page=pagination['per_page'],
-        message="获取院校列表成功"
+        message="获取成功"
     )
 
 # @recommendation_bp.route('/test/toid', methods=['POST'])
@@ -301,3 +326,134 @@ def get_specialties(args):
     sorted_specialties = sorted(specialties, key=lambda x: (x['specialty_index'] is None, x['specialty_index'] or float('inf')))
     
     return APIResponse.success(sorted_specialties, message="成功")
+
+@recommendation_bp.route('/college-stats', methods=['POST'])
+@recommendation_bp.arguments(CollegeStatsRequestSchema)
+@recommendation_bp.response(200, CollegeStatsResponseSchema)
+@jwt_required()
+@api_error_handler
+def get_college_stats(data):
+    """
+    获取冲稳保各类别及志愿段的院校数量统计
+    
+    根据学生信息统计各类别和志愿段的院校数量，用于前端展示
+    """
+    # 获取当前用户并验证权限
+    current_user_id = get_jwt_identity()
+    current_user = User.query.get_or_404(current_user_id)
+    
+    # 检查用户类型权限 - 只有规划师可以访问该接口
+    is_planner = current_user.user_type == User.USER_TYPE_PLANNER
+    if not is_planner:
+        return APIResponse.error("无权限访问该接口", code=403)
+    
+    student_id = data['student_id']
+    mode = data.get('mode', 'smart')
+    
+    # 从学生ID提取学生信息
+    recommendation_data = StudentDataService.extract_college_recommendation_data(student_id)
+    
+    # 导入哈希计算工具和缓存
+    from app.extensions import cache
+    from app.utils.user_hash import calculate_user_data_hash
+    
+    # 获取当前学生数据的哈希值
+    current_hash = calculate_user_data_hash(recommendation_data)
+    
+    # 缓存键仅使用学生ID
+    cache_key = f"college_stats:{student_id}"
+    
+    # 查找学生当前的志愿方案，获取其中保存的用户数据哈希
+    current_plan = StudentVolunteerPlan.query.filter_by(
+        student_id=student_id,
+        is_current=True
+    ).first()
+    
+    cached_hash = None
+    if current_plan:
+        cached_hash = current_plan.user_data_hash
+    
+    # 尝试从缓存获取结果
+    cached_result = cache.get(cache_key)
+    
+    
+    # 如果缓存存在且学生数据哈希未变化，直接返回缓存结果
+    if cached_result and cached_hash and cached_hash == current_hash:
+        return APIResponse.success(cached_result, message="获取院校统计数据成功(缓存)")
+    
+    # 初始化结果
+    result = {
+        'categories': [],
+        'total_colleges': 0
+    }
+    
+    # 定义类别名称映射
+    category_names = {
+        1: "冲",
+        2: "稳",
+        3: "保"
+    }
+    
+    # 批量查询所有组的院校数量，减少数据库查询次数
+    student_score = recommendation_data['student_score'] if recommendation_data['student_score'] is not None and recommendation_data['student_score'] > 0 else recommendation_data['mock_exam_score']
+    subject_type = recommendation_data['subject_type']
+    education_level = recommendation_data['education_level']
+    student_subjects = recommendation_data['student_subjects']
+    area_ids = recommendation_data['area_ids']
+    specialty_types = recommendation_data['specialty_types']
+    
+    # 遍历三个类别（冲、稳、保）
+    for category_id in [1, 2, 3]:
+        category_data = {
+            'category_id': category_id,
+            'category_name': category_names[category_id],
+            'total_colleges': 0,
+            'groups': []
+        }
+        
+        # 每个类别只有4个组（而不是12个）
+        # 计算起始组ID和结束组ID
+        start_group_id = (category_id - 1) * 4 + 1
+        end_group_id = start_group_id + 3
+        
+        # 遍历当前类别下的4个志愿段
+        for group_id in range(start_group_id, end_group_id + 1):
+            # 使用优化的方法获取院校数量
+            group_college_count = RecommendationService.get_college_count_by_category_and_group(
+                student_score=student_score,
+                subject_type=subject_type,
+                education_level=education_level,
+                category_id=category_id,
+                group_id=group_id,
+                student_subjects=student_subjects,
+                area_ids=area_ids,
+                specialty_types=specialty_types,
+                mode=mode,
+                tese_types=recommendation_data.get('tese_types'),
+                leixing_types=recommendation_data.get('leixing_types'),
+                teshu_types=recommendation_data.get('teshu_types'),
+                tuition_ranges=recommendation_data.get('tuition_ranges')
+            )
+            
+            # 添加该组的统计数据（移除selected_count）
+            category_data['groups'].append({
+                'group_id': group_id,
+                'total_colleges': group_college_count
+            })
+            
+            # 累加到类别总数
+            category_data['total_colleges'] += group_college_count
+            
+        # 添加类别数据到结果
+        result['categories'].append(category_data)
+        
+        # 累加到总院校数
+        result['total_colleges'] += category_data['total_colleges']
+        
+    # 如果学生有当前志愿方案，则更新用户数据哈希
+    current_plan.user_data_hash = current_hash
+    current_plan.save()
+    # 将结果存入缓存，有效期1天 - 因为更新逻辑基于哈希值判断，所以可以设置较长的超时时间
+    cache.set(cache_key, result, timeout=86400)  # 24小时缓存
+    
+    return APIResponse.success(result, message="获取院校统计数据成功")

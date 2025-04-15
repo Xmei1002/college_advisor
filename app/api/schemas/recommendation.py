@@ -91,3 +91,26 @@ class SpecialtiesRequestSchema(Schema):
         required=False,
         description="专业组ID，college_group_id 用于获取所有专业"
     )
+
+# 新增院校统计接口相关Schema
+class CollegeStatsRequestSchema(Schema):
+    """院校统计请求参数"""
+    student_id = fields.Integer(required=True, description="学生ID")
+    mode = fields.String(validate=validate.OneOf(['smart', 'professional', 'free']), default='smart', description="分类模式：smart-智能，professional-专业，free-自由")
+
+class GroupStatsSchema(Schema):
+    """组别统计"""
+    group_id = fields.Integer(description="志愿段ID，1-12")
+    total_colleges = fields.Integer(description="该组可选院校总数")
+
+class CategoryStatsSchema(Schema):
+    """类别统计"""
+    category_id = fields.Integer(description="类别ID：1-冲刺，2-稳妥，3-保底")
+    category_name = fields.String(description="类别名称")
+    total_colleges = fields.Integer(description="该类别可选院校总数")
+    groups = fields.List(fields.Nested(GroupStatsSchema), description="各组统计")
+
+class CollegeStatsResponseSchema(Schema):
+    """院校统计响应"""
+    categories = fields.List(fields.Nested(CategoryStatsSchema), description="各类别院校统计")
+    total_colleges = fields.Integer(description="全部院校总数")

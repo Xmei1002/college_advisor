@@ -28,6 +28,10 @@ def get_task_status(task_id):
     
     # 获取任务结果
     task_result = AsyncResult(task_id, app=celery)
+    if task_result.state == 'PENDING' and not task_result.result:
+        # 可能是任务不存在或已过期
+        return APIResponse.error(message="任务不存在或结果已过期",code=404)
+    
     response_data = {
         'task_id': task_result.id,
         'status': task_result.status,

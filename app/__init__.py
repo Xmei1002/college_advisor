@@ -4,10 +4,16 @@ from app.extensions import db, migrate, jwt, socketio, cors, api_spec
 from app.utils.logger import setup_logger
 import logging
 from app.utils.response import APIResponse
-from app.extensions import init_celery
+from app.extensions import init_celery, init_extensions
+import os
 
-def create_app():
+def create_app(config_name=None):
+    """创建Flask应用实例"""
     app = Flask(__name__)
+    
+    # 加载配置
+    if config_name is None:
+        config_name = os.getenv('FLASK_CONFIG', 'development')
     app.config.from_object(Config)
     Config.init_app(app)
     
@@ -23,7 +29,8 @@ def create_app():
     cors.init_app(app)
     socketio.init_app(app)
     api_spec.init_app(app)
-    init_celery(app)  # 添加这一行
+    init_celery(app)
+    init_extensions(app)  # 初始化缓存等其他扩展
 
     @jwt.expired_token_loader
     def expired_token_callback(jwt_header, jwt_payload):
