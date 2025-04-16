@@ -286,3 +286,89 @@ def export_volunteer_plan(plan_id):
             message=result.get('error', '导出志愿方案失败'),  # 使用 get 方法避免键不存在的情况
             code=500
         )
+
+@volunteer_plan_bp.route('/export_analysis/<int:plan_id>', methods=['GET'])
+@jwt_required()
+@api_error_handler
+def export_volunteer_plan_analysis(plan_id):
+    """导出志愿方案解析为Excel文件"""
+    
+    # 添加日志记录，帮助调试
+    current_app.logger.info(f"开始导出志愿方案解析 {plan_id} 为Excel文件")
+    
+    result = VolunteerPlanService.export_volunteer_plan_analysis_to_excel(plan_id)
+    
+    # 记录结果
+    current_app.logger.info(f"导出解析结果: {result}")
+    
+    if result['success']:
+        return send_file(
+            result['filepath'],
+            as_attachment=True,
+            download_name=result['filename'],
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+    else:
+        return APIResponse.error(
+            message=result.get('error', '导出志愿方案解析失败'),
+            code=500
+        )
+
+@volunteer_plan_bp.route('/export_analysis_word/<int:plan_id>', methods=['GET'])
+@jwt_required()
+@api_error_handler
+def export_volunteer_plan_analysis_word(plan_id):
+    """导出志愿方案解析为Word文件，支持Markdown格式"""
+    
+    current_app.logger.info(f"开始导出志愿方案解析 {plan_id} 为Word文件")
+    
+    result = VolunteerPlanService.export_volunteer_plan_analysis_to_word(plan_id)
+    
+    current_app.logger.info(f"导出Word解析结果: {result}")
+    
+    if result['success']:
+        return send_file(
+            result['filepath'],
+            as_attachment=True,
+            download_name=result['filename'],
+            mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        )
+    else:
+        return APIResponse.error(
+            message=result.get('error', '导出志愿方案解析Word失败'),
+            code=500
+        )
+
+# @volunteer_plan_bp.route('/export_analysis_pdf/<int:plan_id>', methods=['GET'])
+# @jwt_required()
+# @api_error_handler
+# def export_volunteer_plan_analysis_pdf(plan_id):
+#     """导出志愿方案解析为PDF文件，最佳格式展示"""
+    
+#     current_app.logger.info(f"开始导出志愿方案解析 {plan_id} 为PDF文件")
+    
+#     result = VolunteerPlanService.export_volunteer_plan_analysis_to_pdf(plan_id)
+    
+#     current_app.logger.info(f"导出PDF解析结果: {result}")
+    
+#     if result['success']:
+#         return send_file(
+#             result['filepath'],
+#             as_attachment=True,
+#             download_name=result['filename'],
+#             mimetype='application/pdf'
+#         )
+#     elif result.get('word_file') and result['word_file'].get('success'):
+#         # 如果PDF失败但有Word文件作为备选
+#         return send_file(
+#             result['word_file']['filepath'],
+#             as_attachment=True,
+#             download_name=result['word_file']['filename'],
+#             mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+#         )
+#     else:
+#         return APIResponse.error(
+#             message=result.get('error', '导出志愿方案解析PDF失败'),
+#             code=500
+#         )
+    

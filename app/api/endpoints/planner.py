@@ -9,6 +9,9 @@ from app.models.studentProfile import Student,AcademicRecord
 from app.api.schemas import PaginationQuerySchema
 from app.models.user import User
 from app.extensions import db
+from app.api.schemas.student import (
+    ComprehensiveStudentResponseSchema
+)
 # 创建规划师管理蓝图
 planner_bp = Blueprint(
     'planner', 
@@ -240,6 +243,50 @@ def get_student_preferences(student_id):
     )
 
 
+@planner_bp.route('/my-students/<int:student_id>/comprehensive-info', methods=['GET'])
+@planner_bp.response(200, ComprehensiveStudentResponseSchema)
+@jwt_required()
+@api_error_handler
+def planner_get_student_comprehensive_info(student_id):
+    """
+    规划师获取学生全部信息
+    
+    规划师获取特定学生的所有信息，包括基本信息、学业记录、职业志向和大学偏好
+    """
+    # 获取当前用户（规划师）
+    planner_id = get_jwt_identity()
+    planner = User.query.get_or_404(int(planner_id))
+    
+    # 验证权限
+    if not planner.is_planner():
+        return APIResponse.error("权限不足，仅限规划师操作", code=403)
+    
+    # 获取学生信息
+    student = Student.query.get_or_404(student_id)
+    
+    # 验证学生是否属于该规划师
+    student_user = User.query.get(student.user_id)
+    if not student_user or student_user.planner_id != planner.id:
+        return APIResponse.error("无权操作此学生信息", code=403)
+    
+    # 获取学业记录
+    academic_record = AcademicRecord.query.filter_by(student_id=student.id).first()
+    
+    # 获取职业偏好
+    career_preference = CareerPreference.query.filter_by(student_id=student.id).first()
+    
+    # 获取大学偏好
+    college_preference = CollegePreference.query.filter_by(student_id=student.id).first()
+    
+    return APIResponse.success(
+        data={
+            'student': student.to_dict(),
+            'academic_record': academic_record.to_dict() if academic_record else None,
+            'career_preference': career_preference.to_dict() if career_preference else None,
+            'college_preference': college_preference.to_dict() if college_preference else None
+        },
+        message="获取学生全部信息成功"
+    )
 
 
 

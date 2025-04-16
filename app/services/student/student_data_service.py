@@ -145,7 +145,7 @@ class StudentDataService:
         """
         if not preferred_locations_str:
             return []
-        print(f"preferred_locations_str: {preferred_locations_str}")
+        # print(f"preferred_locations_str: {preferred_locations_str}")
         area_ids = []
         locations = [loc.strip() for loc in preferred_locations_str.split(',')]
         

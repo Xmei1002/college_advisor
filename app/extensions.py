@@ -39,6 +39,7 @@ def init_extensions(app):
     """初始化所有扩展"""
     # 初始化缓存
     cache.init_app(app, config={
-        'CACHE_TYPE': 'simple',  # 使用简单的内存缓存
+        'CACHE_TYPE': 'redis',  # 使用Redis缓存
+        'CACHE_REDIS_URL': app.config["CELERY_BROKER_URL"],  # 使用与Celery相同的Redis连接
         'CACHE_DEFAULT_TIMEOUT': 3600  # 默认缓存时间1小时
     })

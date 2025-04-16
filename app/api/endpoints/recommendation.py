@@ -356,31 +356,22 @@ def get_college_stats(data):
     # 导入哈希计算工具和缓存
     from app.extensions import cache
     from app.utils.user_hash import calculate_user_data_hash
-    
     # 获取当前学生数据的哈希值
     current_hash = calculate_user_data_hash(recommendation_data)
     
-    # 缓存键仅使用学生ID
-    cache_key = f"college_stats:{student_id}"
-    
-    # 查找学生当前的志愿方案，获取其中保存的用户数据哈希
-    current_plan = StudentVolunteerPlan.query.filter_by(
-        student_id=student_id,
-        is_current=True
-    ).first()
-    
-    cached_hash = None
-    if current_plan:
-        cached_hash = current_plan.user_data_hash
+    # 为该接口使用特定的缓存键，包含哈希值，确保数据变化时自动失效
+    cache_key = f"college_stats:{student_id}:{current_hash}"
     
     # 尝试从缓存获取结果
     cached_result = cache.get(cache_key)
-    
-    
-    # 如果缓存存在且学生数据哈希未变化，直接返回缓存结果
-    if cached_result and cached_hash and cached_hash == current_hash:
+
+    # 如果缓存存在，直接返回缓存结果
+    if cached_result:
         return APIResponse.success(cached_result, message="获取院校统计数据成功(缓存)")
+    from app.utils.cache_utils import delete_old_cache_for_student
     
+    # 删除旧缓存
+    delete_old_cache_for_student(student_id, current_hash)
     # 初始化结果
     result = {
         'categories': [],
@@ -449,11 +440,8 @@ def get_college_stats(data):
         
         # 累加到总院校数
         result['total_colleges'] += category_data['total_colleges']
-        
-    # 如果学生有当前志愿方案，则更新用户数据哈希
-    current_plan.user_data_hash = current_hash
-    current_plan.save()
-    # 将结果存入缓存，有效期1天 - 因为更新逻辑基于哈希值判断，所以可以设置较长的超时时间
-    cache.set(cache_key, result, timeout=86400)  # 24小时缓存
+    
+    # 将结果存入缓存，有效期1天
+    cache.set(cache_key, result, timeout=1209600)  # 两周缓存
     
     return APIResponse.success(result, message="获取院校统计数据成功")

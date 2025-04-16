@@ -281,7 +281,7 @@ class ChatService:
                     planner_id=planner_id,
                     conversation_type=conversation_type
                 )
-                task_result = generate_conversation_title_task.delay(conversation.id, message_content)
+                # task_result = generate_conversation_title_task.delay(conversation.id, message_content)
                 
             # 获取最近消息作为上下文
             recent_messages = cls.get_recent_messages(conversation.id)
@@ -329,7 +329,21 @@ class ChatService:
                 
                 # 更新AI消息内容
                 ai_message.content = full_content
+
+            elif conversation_type == Conversation.TYPE_EXPLAININFO:
+                # 使用信息解析
+                ai_stream = MoonshotAI.analyzing_explain_info(message_content, formatted_history, plan_id)
                 
+                # 处理AI流式响应
+                full_content = ""
+                for chunk in ai_stream:
+                    if chunk:
+                        full_content += chunk
+                        yield json.dumps({"type": "chunk", "content": chunk})
+                
+                # 更新AI消息内容
+                ai_message.content = full_content
+
             elif conversation_type == Conversation.TYPE_CHANGEINFO:
                 # 处理修改报考信息的请求
                 preference = CollegePreference.query.filter_by(student_id=student_id).first()
@@ -413,7 +427,6 @@ class ChatService:
             # 更新会话最后消息时间
             conversation.last_message_time = datetime.now()
             db.session.commit()
-            
             
             if conversation_id:
                 yield json.dumps({"type": "end", "title": conversation.title})

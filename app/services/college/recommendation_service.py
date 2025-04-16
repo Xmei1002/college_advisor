@@ -2,7 +2,7 @@
 from app.core.recommendation.repository import CollegeRepository
 from app.core.recommendation.score_classification import ScoreClassifier
 from flask import current_app
-
+from app import db
 class RecommendationService:
     """院校推荐服务，组合数据访问和业务逻辑"""
     
@@ -210,11 +210,10 @@ class RecommendationService:
 
     @staticmethod
     def get_college_count_by_category_and_group(student_score, subject_type, education_level, 
-                                                category_id, group_id, student_subjects,
-                                                area_ids=None, specialty_types=None, 
-                                                mode='smart',
-                                                tese_types=None, leixing_types=None, teshu_types=None,
-                                                tuition_ranges=None):
+                                            category_id, group_id, student_subjects,
+                                            area_ids=None, specialty_types=None, 
+                                            mode='smart', tese_types=None, leixing_types=None, teshu_types=None,
+                                            tuition_ranges=None):
         """
         获取指定类别和志愿段的院校数量（优化性能的方法）
         
@@ -223,41 +222,136 @@ class RecommendationService:
         :param education_level: 学历层次（11-本科，12-专科）
         :param category_id: 类别ID（1-冲，2-稳，3-保）
         :param group_id: 志愿段ID（1-12，对应不同的志愿段）
-        :param student_subjects: 学生选科情况，字典格式如{'wu': 1, 'hua': 1, 'sheng': 2, 'shi': 2, 'di': 2, 'zheng': 2}
+        :param student_subjects: 学生选科情况
         :param area_ids: 地区ID列表
         :param specialty_types: 专业类型ID列表
         :param mode: 分类模式（'smart','professional','free'）
         :param tese_types: 学校特色筛选列表
         :param leixing_types: 学校类型筛选列表
         :param teshu_types: 特殊类型筛选列表
-        :param tuition_ranges: 学费范围列表，格式为[(min1, max1), (min2, max2), ...]
+        :param tuition_ranges: 学费范围列表
         :return: 符合条件的院校专业组数量
         """
-        # 参数预处理，确保area_ids和specialty_types为列表
+        # 导入模型（避免循环导入）
+        from app.models.zwh_xgk_fenshuxian_2025 import ZwhXgkFenshuxian2025
+        from app.models.zwh_xgk_yuanxiao_2025 import ZwhXgkYuanxiao2025
+        from app.models.zwh_areas import ZwhAreas
+        from app.models.zwh_xgk_fenzu_2025 import ZwhXgkFenzu2025
+        from app.core.recommendation.score_classification import ScoreClassifier
+        
+        # 参数预处理
         area_ids = area_ids or []
         specialty_types = specialty_types or []
         tese_types = tese_types or []
         leixing_types = leixing_types or []
         teshu_types = teshu_types or []
         tuition_ranges = tuition_ranges or []
-        education_level = education_level or 11  # 默认本科
-
-        # 1. 获取所有符合条件的专业组
-        college_groups = CollegeRepository.get_college_groups_by_category(
-            student_score=student_score,
-            subject_type=subject_type,
-            education_level=education_level,
-            category_id=category_id,
-            group_id=group_id,
-            student_subjects=student_subjects,
-            area_ids=area_ids,
-            specialty_types=specialty_types,
-            mode=mode,
-            tese_types=tese_types,
-            leixing_types=leixing_types,
-            teshu_types=teshu_types,
-            tuition_ranges=tuition_ranges
+        
+        # 获取分差范围
+        score_diff_range = ScoreClassifier.get_score_diff_range(
+            category_id, group_id, education_level, mode
         )
         
-        # 2. 返回数量
-        return len(college_groups)
+        # 如果没有找到对应的分差范围，返回0
+        if not score_diff_range:
+            return 0
+            
+        min_diff, max_diff = score_diff_range
+        
+        # 直接进行COUNT查询，只计数而不获取完整数据
+        query = db.session.query(
+            db.func.count(db.distinct(ZwhXgkFenshuxian2025.cgid))
+        ).join(
+            ZwhXgkYuanxiao2025, 
+            ZwhXgkFenshuxian2025.cid == ZwhXgkYuanxiao2025.cid
+        ).join(
+            ZwhAreas,
+            ZwhXgkYuanxiao2025.aid == ZwhAreas.aid
+        ).join(
+            ZwhXgkFenzu2025,
+            ZwhXgkFenshuxian2025.cgid == ZwhXgkFenzu2025.cgid
+        ).filter(
+            ZwhXgkFenshuxian2025.suid == subject_type,
+            ZwhXgkFenshuxian2025.spid == 32767,  # 仅查询投档线记录
+            ZwhXgkFenshuxian2025.newbid == education_level,
+            ZwhXgkFenshuxian2025.yuce.isnot(None),
+            (ZwhXgkFenshuxian2025.yuce - student_score).between(min_diff, max_diff)
+        )
+        
+        # 添加地区筛选 - 考虑多个地区及其子地区
+        if area_ids:
+            all_area_ids = []
+            for area_id in area_ids:
+                child_area_ids = CollegeRepository.get_all_child_areas(area_id)
+                all_area_ids.extend(child_area_ids)
+            
+            all_area_ids = list(set(all_area_ids))
+            
+            if all_area_ids:
+                query = query.filter(ZwhXgkYuanxiao2025.aid.in_(all_area_ids))
+        
+        # 添加专业类型筛选
+        if specialty_types:
+            subquery = db.session.query(ZwhXgkFenshuxian2025.cgid).filter(
+                ZwhXgkFenshuxian2025.subclassid.in_(specialty_types),
+                ZwhXgkFenshuxian2025.spid != 32767
+            ).distinct().subquery()
+            
+            query = query.filter(ZwhXgkFenshuxian2025.cgid.in_(subquery))
+        
+        # 添加学校特色筛选
+        if tese_types:
+            tese_conditions = []
+            for tese_type in tese_types:
+                tese_conditions.append(ZwhXgkYuanxiao2025.tese.like(f'%{tese_type}%'))
+            
+            if tese_conditions:
+                query = query.filter(db.or_(*tese_conditions))
+        
+        # 添加学校类型筛选
+        if leixing_types:
+            query = query.filter(ZwhXgkYuanxiao2025.leixing.in_(leixing_types))
+        
+        # 添加特殊类型筛选
+        if teshu_types:
+            teshu_conditions = []
+            for teshu_type in teshu_types:
+                teshu_conditions.append(ZwhXgkYuanxiao2025.teshu.like(f'%{teshu_type}%'))
+            
+            if teshu_conditions:
+                query = query.filter(db.or_(*teshu_conditions))
+        
+        # 添加选科匹配条件
+        if student_subjects:
+            for subject_key, subject_value in student_subjects.items():
+                if subject_value == 1:  # 学生选了该科目
+                    continue  # 无需额外筛选
+                elif subject_value == 2:  # 学生没选该科目
+                    query = query.filter(getattr(ZwhXgkFenzu2025, subject_key) == 2)
+        
+        # 添加学费范围筛选
+        if tuition_ranges:
+            tuition_conditions = []
+            for min_fee, max_fee in tuition_ranges:
+                if max_fee is None:
+                    tuition_conditions.append(ZwhXgkFenzu2025.minxuefei >= min_fee)
+                else:
+                    condition1 = db.and_(
+                        ZwhXgkFenzu2025.minxuefei >= min_fee,
+                        ZwhXgkFenzu2025.minxuefei <= max_fee
+                    )
+                    condition2 = db.and_(
+                        ZwhXgkFenzu2025.maxxuefei >= min_fee,
+                        ZwhXgkFenzu2025.maxxuefei <= max_fee
+                    )
+                    condition3 = db.and_(
+                        ZwhXgkFenzu2025.minxuefei <= min_fee,
+                        ZwhXgkFenzu2025.maxxuefei >= max_fee
+                    )
+                    tuition_conditions.append(db.or_(condition1, condition2, condition3))
+            
+            if tuition_conditions:
+                query = query.filter(db.or_(*tuition_conditions))
+        
+        # 执行查询并直接返回数量
+        return query.scalar()

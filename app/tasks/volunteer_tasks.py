@@ -34,10 +34,10 @@ def generate_volunteer_plan_task(self, student_id, planner_id, user_data_hash, i
         )
         
         if not is_first:
-            print("生成方案成功，开始分析学生数据快照")
+            print("生成方案成功，开始更新学生志愿方案状态")
             # 更新学生志愿方案状态
             update_student_plan_status(student_id)
-            
+        
         # 返回结果
         return {
             'status': 'success',

@@ -95,6 +95,18 @@ class UpdateVolunteerPlanSchema(Schema):
     remarks = fields.String(allow_none=True)
     colleges = fields.List(fields.Nested(VolunteerCollegeSchema), required=True)
 
+# 志愿类别分析Schema
+class VolunteerCategoryAnalysisSchema(Schema):
+    id = fields.Integer()
+    plan_id = fields.Integer()
+    category_id = fields.Integer()
+    analysis_content = fields.String(allow_none=True)
+    status = fields.String()
+    error_message = fields.String(allow_none=True)
+    analyzed_at = fields.String(allow_none=True)
+    created_at = fields.String()
+    updated_at = fields.String()
+
 # 志愿方案响应Schema
 class VolunteerPlanResponseSchema(Schema):
     id = fields.Integer()
@@ -109,3 +121,4 @@ class VolunteerPlanResponseSchema(Schema):
     created_at = fields.String()
     updated_at = fields.String()
     colleges = fields.List(fields.Nested(VolunteerCollegeSchema), allow_none=True)
+    category_analyses = fields.List(fields.Nested(VolunteerCategoryAnalysisSchema), allow_none=True)

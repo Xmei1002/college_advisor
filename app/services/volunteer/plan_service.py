@@ -8,12 +8,7 @@ from app.services.ai.moonshot import MoonshotAI
 from app.services.ai.ollama import OllamaAPI
 import json
 from app.services.student.student_data_service import StudentDataService
-import pandas as pd
-import os
-from datetime import datetime
-import openpyxl
-from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
-
+from app.utils.helpers import convert_utc_to_beijing
 class VolunteerPlanService:
     """志愿方案服务类，处理学生志愿方案相关业务逻辑"""
     
@@ -32,16 +27,16 @@ class VolunteerPlanService:
         plan = StudentVolunteerPlan.query.get_or_404(plan_id)
         result = plan.to_dict()
         
-        # # 获取志愿类别分析信息
-        # analyses_query = VolunteerCategoryAnalysis.query.filter_by(plan_id=plan_id)
+        # 获取志愿类别分析信息
+        analyses_query = VolunteerCategoryAnalysis.query.filter_by(plan_id=plan_id)
         
-        # # 如果指定了类别ID，也按类别ID过滤分析
-        # if category_id is not None:
-        #     analyses_query = analyses_query.filter_by(category_id=category_id)
+        # 如果指定了类别ID，也按类别ID过滤分析
+        if category_id is not None:
+            analyses_query = analyses_query.filter_by(category_id=category_id)
             
-        # # 获取分析结果并添加到返回数据中
-        # category_analyses = analyses_query.all()
-        # result['category_analyses'] = [analysis.to_dict() for analysis in category_analyses]
+        # 获取分析结果并添加到返回数据中
+        category_analyses = analyses_query.all()
+        result['category_analyses'] = [analysis.to_dict() for analysis in category_analyses]
         
         if include_details:
             # 构建基础查询
@@ -305,7 +300,7 @@ class VolunteerPlanService:
                             'leixing_text': leixing_text[0] if leixing_text else '',
                             'teshu_text': teshu_text,
                             'uncode': group.uncode,
-                            'nature': nature,  # 使用正确的学校性质值
+                            'nature': nature,  # 使用正确的学校性质
                             'subject_requirements': student_subjects,  # 使用学生选科情况
                             'prediction_score': group.prediction_score,
                             'plan_number': group.plan_number
@@ -388,7 +383,7 @@ class VolunteerPlanService:
                     db.session.bulk_save_objects(colleges_to_add)
                     db.session.flush()
                     
-                    # 查询新添加的院校ID - 使用组合键
+                    # 查询新添加的院校志愿，获取它们的ID
                     college_id_map = {
                         (c.group_id, c.volunteer_index): c.id for c in VolunteerCollege.query.filter_by(plan_id=new_plan_id).all()
                     }
@@ -836,7 +831,6 @@ class VolunteerPlanService:
         :return: 生成的Excel文件路径
         """
         try:
-            import pandas as pd
             import os
             from datetime import datetime
             from flask import current_app
@@ -936,7 +930,7 @@ class VolunteerPlanService:
                 school_info += f"标签: {tag}\n"
                 
                 school_info += f"类型: {college.get('school_type_text', '')}\n"
-                school_info += f"参考分数: {college.get('min_score', '')} ~ {college.get('prediction_score', '')}\n"
+                school_info += f"参考分数: {college.get('min_score', '')} \n"
                 school_info += f"属地: {college.get('area_name', '')}\n"
                 
                 # 获取选科要求
@@ -1044,6 +1038,772 @@ class VolunteerPlanService:
                 'success': False,
                 'error': str(e)
             }
+
+    @staticmethod
+    def export_volunteer_plan_analysis_to_excel(plan_id):
+        """
+        将志愿方案解析导出为Excel文件，包含整体解析、各类别解析和学校解析
+        
+        :param plan_id: 志愿方案ID
+        :return: 生成的Excel文件路径信息
+        """
+        try:
+            import os
+            from datetime import datetime
+            from flask import current_app
+            import openpyxl
+            from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+            from app.utils.helpers import convert_utc_to_beijing
+            
+            # 获取志愿方案详情（包含所有学校和解析信息）
+            plan_data = VolunteerPlanService.get_volunteer_plan(plan_id)
+            if not plan_data:
+                return {
+                    'success': False,
+                    'error': "志愿方案数据不完整"
+                }
+            
+            # 创建存储目录
+            upload_folder = current_app.config.get('UPLOAD_FOLDER')
+            if not upload_folder:
+                # 如果配置中没有，使用默认路径
+                upload_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'uploads')
+                current_app.logger.warning(f"UPLOAD_FOLDER 配置缺失，使用默认路径: {upload_folder}")
+                
+            export_dir = os.path.join(upload_folder, 'exports')
+            os.makedirs(export_dir, exist_ok=True)
+            
+            # 生成文件名
+            timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+            filename = f"volunteer_plan_analysis_{plan_id}_{timestamp}.xlsx"
+            filepath = os.path.join(export_dir, filename)
+            
+            # 创建工作簿
+            wb = openpyxl.Workbook()
+            
+            # 定义样式
+            title_font = Font(name='微软雅黑', size=16, bold=True, color='4F81BD')
+            subtitle_font = Font(name='微软雅黑', size=12, bold=True, color='4F81BD')
+            header_font = Font(name='微软雅黑', size=11, bold=True, color='FFFFFF')
+            content_font = Font(name='微软雅黑', size=10)
+            bold_font = Font(name='微软雅黑', size=10, bold=True)
+            italic_font = Font(name='微软雅黑', size=10, italic=True)
+            
+            title_alignment = Alignment(horizontal='center', vertical='center')
+            subtitle_alignment = Alignment(horizontal='left', vertical='center')
+            header_alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+            content_alignment = Alignment(horizontal='left', vertical='center', wrap_text=True)
+            center_alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+            
+            header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
+            odd_row_fill = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
+            
+            thin_border = Side(border_style="thin", color="000000")
+            border = Border(left=thin_border, right=thin_border, top=thin_border, bottom=thin_border)
+            
+            # 颜色定义
+            colors = {
+                '冲': 'FF9999',  # 浅红色
+                '稳': 'FFCC99',  # 浅橙色
+                '保': '99CC99'   # 浅绿色
+            }
+
+            # 辅助函数：处理Markdown格式文本
+            def format_markdown_text(cell, text):
+                """
+                简单处理Markdown格式文本，转换为富文本
+                支持基本的加粗、斜体、标题、列表等
+                """
+                if not text:
+                    return
+                
+                # 最简单的处理方式：去除Markdown标记但保留文本内容
+                # 实际应用中可以进一步区分样式
+                cell.value = text.replace('**', '').replace('*', '').replace('#', '').replace('`', '')
+                
+                # 更复杂的处理可以在这里添加，例如识别不同标记并应用不同样式
+                # 这里只是示例，实际实现可能需要更复杂的解析
+            
+            # 1. 创建总体概览工作表
+            ws_overview = wb.active
+            ws_overview.title = "总体方案解析"
+            
+            # 设置列宽
+            ws_overview.column_dimensions['A'].width = 15
+            ws_overview.column_dimensions['B'].width = 70
+            
+            # 标题
+            ws_overview.merge_cells('A1:B1')
+            cell = ws_overview['A1']
+            cell.value = f"志愿方案分析报告"
+            cell.font = title_font
+            cell.alignment = title_alignment
+            ws_overview.row_dimensions[1].height = 30
+            
+            # 基本信息
+            row = 3
+            ws_overview.cell(row=row, column=1).value = "方案名称"
+            ws_overview.cell(row=row, column=1).font = subtitle_font
+            ws_overview.cell(row=row, column=1).alignment = subtitle_alignment
+            
+            ws_overview.cell(row=row, column=2).value = plan_data.get('name', '未命名方案')
+            ws_overview.cell(row=row, column=2).font = content_font
+            ws_overview.cell(row=row, column=2).alignment = content_alignment
+            
+            row += 1
+            ws_overview.cell(row=row, column=1).value = "创建时间"
+            ws_overview.cell(row=row, column=1).font = subtitle_font
+            ws_overview.cell(row=row, column=1).alignment = subtitle_alignment
+            
+            # 获取并转换UTC时间为北京时间
+            created_at = plan_data.get('created_at', '')
+            created_at = convert_utc_to_beijing(created_at)
+            
+            ws_overview.cell(row=row, column=2).value = created_at
+            ws_overview.cell(row=row, column=2).font = content_font
+            ws_overview.cell(row=row, column=2).alignment = content_alignment
+            
+            row += 2
+            ws_overview.cell(row=row, column=1).value = "整体解析"
+            ws_overview.cell(row=row, column=1).font = subtitle_font
+            ws_overview.cell(row=row, column=1).alignment = subtitle_alignment
+            
+            row += 1
+            # 查找category_id为0的整体解析
+            overall_analysis = '暂无整体解析'
+            category_analyses = plan_data.get('category_analyses', [])
+            for analysis in category_analyses:
+                if analysis.get('category_id') == 0:
+                    overall_analysis = analysis.get('analysis_content', '暂无整体解析')
+                    break
+                    
+            ws_overview.merge_cells(f'A{row}:B{row+5}')
+            cell = ws_overview[f'A{row}']
+            # 处理可能的Markdown格式
+            format_markdown_text(cell, overall_analysis)
+            cell.font = content_font
+            cell.alignment = content_alignment
+            
+            # 2. 创建分类解析工作表
+            ws_category = wb.create_sheet(title="分类解析")
+            
+            # 设置列宽
+            ws_category.column_dimensions['A'].width = 15
+            ws_category.column_dimensions['B'].width = 60
+            
+            # 添加标题
+            ws_category.merge_cells('A1:B1')
+            cell = ws_category['A1']
+            cell.value = "志愿方案分类解析"
+            cell.font = title_font
+            cell.alignment = title_alignment
+            ws_category.row_dimensions[1].height = 30
+            
+            # 表头
+            row = 3
+            headers = ["类别", "分析"]
+            for col_idx, header in enumerate(headers, 1):
+                cell = ws_category.cell(row=row, column=col_idx)
+                cell.value = header
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = header_alignment
+                cell.border = border
+            
+            # 填充分类数据
+            row += 1
+            categories = {'1': '冲', '2': '稳', '3': '保'}
+            category_analyses = plan_data.get('category_analyses', [])
+            
+            for category_analysis in category_analyses:
+                category_id = category_analysis.get('category_id')
+                # 跳过整体解析（category_id=0）
+                if category_id == 0:
+                    continue
+                    
+                category_name = categories.get(str(category_id), '未知')
+                analysis = category_analysis.get('analysis_content', '暂无分析')
+                
+                # 设置颜色填充
+                fill = PatternFill(start_color=colors.get(category_name, "FFFFFF"), 
+                                   end_color=colors.get(category_name, "FFFFFF"), 
+                                   fill_type="solid")
+                
+                # 添加数据行
+                cell = ws_category.cell(row=row, column=1)
+                cell.value = category_name
+                cell.font = content_font
+                cell.alignment = center_alignment
+                cell.border = border
+                cell.fill = fill
+                
+                cell = ws_category.cell(row=row, column=2)
+                # 处理可能的Markdown格式
+                format_markdown_text(cell, analysis)
+                cell.font = content_font
+                cell.alignment = content_alignment
+                cell.border = border
+                cell.fill = fill
+                
+                row += 1
+            
+            # 3. 创建学校解析工作表
+            ws_school = wb.create_sheet(title="院校解析")
+            
+            # 设置列宽
+            ws_school.column_dimensions['A'].width = 10
+            ws_school.column_dimensions['B'].width = 30
+            ws_school.column_dimensions['C'].width = 15
+            ws_school.column_dimensions['D'].width = 60
+            
+            # 添加标题
+            ws_school.merge_cells('A1:D1')
+            cell = ws_school['A1']
+            cell.value = "院校解析详情"
+            cell.font = title_font
+            cell.alignment = title_alignment
+            ws_school.row_dimensions[1].height = 30
+            
+            # 表头
+            row = 3
+            headers = ["志愿序号", "院校名称", "类别", "AI解析"]
+            for col_idx, header in enumerate(headers, 1):
+                cell = ws_school.cell(row=row, column=col_idx)
+                cell.value = header
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = header_alignment
+                cell.border = border
+            
+            # 填充学校数据
+            row += 1
+            colleges = plan_data.get('colleges', [])
+            
+            for i, college in enumerate(colleges):
+                volunteer_index = college.get('volunteer_index', 0)
+                college_name = college.get('college_name', '')
+                category_id = college.get('category_id', '')
+                category_name = categories.get(str(category_id), '未知')
+                ai_analysis = college.get('ai_analysis', '')
+                
+                # 跳过没有AI解析的学校
+                if not ai_analysis:
+                    continue
+                
+                # 设置行背景色 - 使用浅色斑马条纹
+                is_odd_row = (i % 2 == 0)
+                fill = odd_row_fill if is_odd_row else None
+                
+                # 添加数据行
+                cell = ws_school.cell(row=row, column=1)
+                cell.value = f"第{volunteer_index}志愿"
+                cell.font = content_font
+                cell.alignment = center_alignment
+                cell.border = border
+                if fill:
+                    cell.fill = fill
+                
+                cell = ws_school.cell(row=row, column=2)
+                cell.value = college_name
+                cell.font = content_font
+                cell.alignment = content_alignment
+                cell.border = border
+                if fill:
+                    cell.fill = fill
+                
+                # 设置类别单元格的填充颜色
+                cell = ws_school.cell(row=row, column=3)
+                cell.value = category_name
+                cell.font = content_font
+                cell.alignment = center_alignment
+                cell.border = border
+                cat_fill = PatternFill(start_color=colors.get(category_name, "FFFFFF"), 
+                                      end_color=colors.get(category_name, "FFFFFF"), 
+                                      fill_type="solid")
+                cell.fill = cat_fill
+                
+                cell = ws_school.cell(row=row, column=4)
+                # 处理可能的Markdown格式
+                format_markdown_text(cell, ai_analysis)
+                cell.font = content_font
+                cell.alignment = content_alignment
+                cell.border = border
+                if fill:
+                    cell.fill = fill
+                
+                row += 1
+            
+            # 保存Excel文件
+            wb.save(filepath)
+            
+            return {
+                'success': True,
+                'filename': filename,
+                'filepath': filepath,
+                'url': f"/uploads/exports/{filename}"
+            }
+            
+        except Exception as e:
+            current_app.logger.error(f"导出志愿方案解析Excel失败: {str(e)}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+
+    @staticmethod
+    def export_volunteer_plan_analysis_to_word(plan_id):
+        """
+        将志愿方案解析导出为Word文件，包含整体解析、各类别解析和学校解析
+        支持Markdown格式的解析内容
+        
+        :param plan_id: 志愿方案ID
+        :return: 生成的Word文件路径信息
+        """
+        try:
+            import os
+            from datetime import datetime
+            from flask import current_app
+            from docx import Document
+            from docx.shared import Pt, Cm, RGBColor
+            from docx.enum.text import WD_ALIGN_PARAGRAPH
+            from app.utils.helpers import convert_utc_to_beijing
+            
+            # 获取志愿方案详情
+            plan_data = VolunteerPlanService.get_volunteer_plan(plan_id)
+            if not plan_data:
+                return {
+                    'success': False,
+                    'error': "志愿方案数据不完整"
+                }
+            
+            # 创建存储目录
+            upload_folder = current_app.config.get('UPLOAD_FOLDER')
+            if not upload_folder:
+                upload_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'uploads')
+                current_app.logger.warning(f"UPLOAD_FOLDER 配置缺失，使用默认路径: {upload_folder}")
+                
+            export_dir = os.path.join(upload_folder, 'exports')
+            os.makedirs(export_dir, exist_ok=True)
+            
+            # 生成文件名
+            timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+            filename = f"volunteer_plan_analysis_{plan_id}_{timestamp}.docx"
+            filepath = os.path.join(export_dir, filename)
+            
+            # 创建文档
+            doc = Document()
+            
+            # 设置文档页面和字体
+            sections = doc.sections
+            for section in sections:
+                section.page_width = Cm(21)  # A4宽度
+                section.page_height = Cm(29.7)  # A4高度
+                section.left_margin = Cm(2)
+                section.right_margin = Cm(2)
+                section.top_margin = Cm(2)
+                section.bottom_margin = Cm(2)
+            
+            # 辅助函数：处理Markdown格式文本添加到Word
+            def format_markdown_to_word(doc, text):
+                """
+                直接接收文档对象，处理Markdown文本并添加到文档，
+                确保标题出现在相应内容之前
+                """
+                if not text:
+                    return
+                
+                # 解析文本，将其分成标题和段落
+                sections = []  # 存储解析后的部分，每部分包含标题和内容
+                current_heading = None
+                current_content = []
+                
+                lines = text.split('\n')
+                for line in lines:
+                    if line.startswith('#'):  # 是标题行
+                        # 如果已有内容，保存当前部分
+                        if current_heading or current_content:
+                            sections.append((current_heading, current_content))
+                            current_content = []
+                        
+                        # 保存新标题
+                        current_heading = line
+                    else:
+                        # 添加到当前内容
+                        current_content.append(line)
+                
+                # 添加最后一部分
+                if current_heading or current_content:
+                    sections.append((current_heading, current_content))
+                
+                # 按顺序添加到文档
+                for heading, content in sections:
+                    # 先添加标题
+                    if heading:
+                        if heading.startswith('# '):
+                            p = doc.add_paragraph()
+                            p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                            run = p.add_run(heading[2:])
+                            run.font.size = Pt(16)
+                            run.font.bold = True
+                        elif heading.startswith('## '):
+                            p = doc.add_paragraph()
+                            p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                            run = p.add_run(heading[3:])
+                            run.font.size = Pt(14)
+                            run.font.bold = True
+                        elif heading.startswith('### '):
+                            p = doc.add_paragraph()
+                            p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                            run = p.add_run(heading[4:])
+                            run.font.size = Pt(13)
+                            run.font.bold = True
+                    
+                    # 再添加内容
+                    if content:
+                        p = doc.add_paragraph()
+                        # 处理内容中的格式
+                        for line in content:
+                            # 处理空行
+                            if not line.strip():
+                                p.add_run('\n')
+                                continue
+                            
+                            # 处理粗体、斜体等
+                            segments = []
+                            current_pos = 0
+                            in_bold = False
+                            in_italic = False
+                            
+                            for i in range(len(line)):
+                                if i < current_pos:
+                                    continue
+                                
+                                if line[i:i+2] == '**' and not in_italic:
+                                    segments.append((line[current_pos:i], in_bold, in_italic))
+                                    current_pos = i + 2
+                                    in_bold = not in_bold
+                                elif line[i:i+1] == '*' and not in_bold:
+                                    segments.append((line[current_pos:i], in_bold, in_italic))
+                                    current_pos = i + 1
+                                    in_italic = not in_italic
+                            
+                            # 添加最后一段文本
+                            if current_pos < len(line):
+                                segments.append((line[current_pos:], in_bold, in_italic))
+                            
+                            # 创建格式化的文本
+                            for text, bold, italic in segments:
+                                if not text:
+                                    continue
+                                run = p.add_run(text)
+                                run.font.size = Pt(11)
+                                run.font.bold = bold
+                                run.italic = italic
+                            
+                            p.add_run('\n')
+            
+            # 1. 添加标题
+            title = doc.add_heading('志愿方案分析报告', level=0)
+            title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            
+            # 2. 添加基本信息
+            doc.add_paragraph().add_run('').add_break()  # 添加空行
+            
+            p = doc.add_paragraph()
+            p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            run = p.add_run('创建时间：')
+            run.font.bold = True
+            run.font.size = Pt(12)
+            
+            # 获取并转换UTC时间为北京时间
+            created_at = plan_data.get('created_at', '')
+            created_at = convert_utc_to_beijing(created_at)
+            
+            p.add_run(created_at).font.size = Pt(11)
+            
+            # 3. 添加整体解析
+            doc.add_paragraph().add_run('').add_break()  # 添加空行
+            p = doc.add_paragraph()
+            run = p.add_run('整体解析')
+            run.font.bold = True
+            run.font.size = Pt(14)
+            
+            # 查找category_id为0的整体解析
+            overall_analysis = '暂无整体解析'
+            category_analyses = plan_data.get('category_analyses', [])
+            for analysis in category_analyses:
+                if analysis.get('category_id') == 0:
+                    overall_analysis = analysis.get('analysis_content', '暂无整体解析')
+                    break
+            
+            # 使用修改后的函数处理Markdown
+            format_markdown_to_word(doc, overall_analysis)
+            
+            doc.add_paragraph().add_run('').add_break()  # 添加空行
+            
+            # 4. 添加分类解析
+            doc.add_heading('志愿方案分类解析', level=1)
+            
+            categories = {'1': '冲', '2': '稳', '3': '保'}
+            category_colors = {
+                '冲': RGBColor(255, 153, 153),  # 浅红色
+                '稳': RGBColor(255, 204, 153),  # 浅橙色
+                '保': RGBColor(153, 204, 153)   # 浅绿色
+            }
+            
+            for category_analysis in category_analyses:
+                category_id = category_analysis.get('category_id')
+                # 跳过整体解析（category_id=0）
+                if category_id == 0:
+                    continue
+                    
+                category_name = categories.get(str(category_id), '未知')
+                analysis = category_analysis.get('analysis_content', '暂无分析')
+                
+                p = doc.add_paragraph()
+                run = p.add_run(f"{category_name}类院校解析")
+                run.font.bold = True
+                run.font.size = Pt(13)
+                # 设置分类颜色
+                if category_name in category_colors:
+                    run.font.color.rgb = category_colors[category_name]
+                
+                # 使用修改后的函数处理Markdown
+                format_markdown_to_word(doc, analysis)
+                
+                doc.add_paragraph().add_run('').add_break()  # 添加空行
+            
+            # 5. 添加院校解析
+            doc.add_heading('院校解析详情', level=1)
+            
+            colleges = plan_data.get('colleges', [])
+            has_ai_analysis = False
+            
+            for college in colleges:
+                volunteer_index = college.get('volunteer_index', 0)
+                college_name = college.get('college_name', '')
+                category_id = college.get('category_id', '')
+                category_name = categories.get(str(category_id), '未知')
+                ai_analysis = college.get('ai_analysis', '')
+                
+                # 跳过没有AI解析的学校
+                if not ai_analysis:
+                    continue
+                
+                has_ai_analysis = True
+                
+                p = doc.add_paragraph()
+                run = p.add_run(f"第{volunteer_index}志愿 - {college_name}")
+                run.font.bold = True
+                run.font.size = Pt(12)
+                
+                p = doc.add_paragraph()
+                run = p.add_run(f"类别: {category_name}")
+                run.font.size = Pt(11)
+                if category_name in category_colors:
+                    run.font.color.rgb = category_colors[category_name]
+                
+                # 使用修改后的函数处理Markdown
+                format_markdown_to_word(doc, ai_analysis)
+                
+                doc.add_paragraph().add_run('').add_break()  # 添加空行
+            
+            if not has_ai_analysis:
+                p = doc.add_paragraph()
+                p.add_run('暂无院校AI解析数据').font.italic = True
+            
+            # 保存文档
+            doc.save(filepath)
+            
+            return {
+                'success': True,
+                'filename': filename,
+                'filepath': filepath,
+                'url': f"/uploads/exports/{filename}"
+            }
+            
+        except Exception as e:
+            current_app.logger.error(f"导出志愿方案解析Word失败: {str(e)}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+        
+    # @staticmethod
+    # def export_volunteer_plan_analysis_to_pdf(plan_id):
+    #     """
+    #     将志愿方案解析导出为PDF文件，使用python-docx读取Word内容，ReportLab生成PDF
+    #     支持中文字符
+        
+    #     :param plan_id: 志愿方案ID
+    #     :return: 生成的PDF文件路径信息
+    #     """
+    #     try:
+    #         import os
+    #         import platform
+    #         from flask import current_app
+    #         import docx
+    #         from reportlab.lib.pagesizes import A4
+    #         from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+    #         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    #         from reportlab.pdfbase import pdfmetrics
+    #         from reportlab.pdfbase.ttfonts import TTFont
+            
+    #         # 先生成Word文档
+    #         word_result = VolunteerPlanService.export_volunteer_plan_analysis_to_word(plan_id)
+    #         if not word_result['success']:
+    #             return word_result
+            
+    #         # 获取Word文件路径
+    #         word_filepath = word_result['filepath']
+            
+    #         # 生成PDF文件名和路径
+    #         filename = os.path.splitext(os.path.basename(word_filepath))[0] + '.pdf'
+    #         export_dir = os.path.dirname(word_filepath)
+    #         filepath = os.path.join(export_dir, filename)
+            
+    #         # 注册中文字体 - 方法一：使用嵌入式字体
+    #         # 获取项目根目录
+    #         project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    #         font_dir = os.path.join(project_root, 'app', 'static', 'fonts')
+    #         os.makedirs(font_dir, exist_ok=True)
+            
+    #         # 使用中文字体，优先尝试嵌入式字体
+    #         font_path = os.path.join(font_dir, 'SimSun.ttf')  # 宋体
+            
+    #         # 如果嵌入式字体不存在，尝试使用系统字体
+    #         if not os.path.exists(font_path):
+    #             system = platform.system().lower()
+    #             if system == 'windows':
+    #                 # Windows 系统字体路径
+    #                 system_font_path = os.path.join(os.environ.get('WINDIR', 'C:\\Windows'), 'Fonts', 'simsun.ttc')
+    #                 if os.path.exists(system_font_path):
+    #                     font_path = system_font_path
+    #                 else:
+    #                     # 备选字体
+    #                     system_font_path = os.path.join(os.environ.get('WINDIR', 'C:\\Windows'), 'Fonts', 'msyh.ttc')
+    #                     if os.path.exists(system_font_path):
+    #                         font_path = system_font_path
+    #             elif system == 'linux':
+    #                 # Linux 系统尝试常见的中文字体
+    #                 linux_fonts = [
+    #                     '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',  # 文泉驿正黑
+    #                     '/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf',  # Droid Sans
+    #                     '/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc'  # Noto Sans CJK
+    #                 ]
+    #                 for f in linux_fonts:
+    #                     if os.path.exists(f):
+    #                         font_path = f
+    #                         break
+    #             elif system == 'darwin':  # macOS
+    #                 mac_fonts = [
+    #                     '/Library/Fonts/PingFang.ttc',  # PingFang
+    #                     '/Library/Fonts/STHeiti Light.ttc',  # Heiti
+    #                     '/System/Library/Fonts/PingFang.ttc'  # 系统 PingFang
+    #                 ]
+    #                 for f in mac_fonts:
+    #                     if os.path.exists(f):
+    #                         font_path = f
+    #                         break
+            
+    #         # 如果找不到任何中文字体，使用备选方案：从在线下载或使用包内置字体
+    #         if not os.path.exists(font_path):
+    #             current_app.logger.warning("未找到中文字体，将尝试使用默认字体")
+    #             # 这里可以添加从包内复制内置字体的逻辑，或者从在线下载字体
+    #             # 简单起见，我们这里使用 Helvetica（不支持中文，但至少不会报错）
+    #             font_name = "Helvetica"
+    #         else:
+    #             # 注册找到的字体
+    #             font_name = "SimSun"  # 注册的字体名称
+    #             pdfmetrics.registerFont(TTFont(font_name, font_path))
+    #             current_app.logger.info(f"已注册中文字体: {font_path}")
+            
+    #         # 读取Word文档内容
+    #         doc = docx.Document(word_filepath)
+            
+    #         # 创建PDF文档
+    #         pdf_doc = SimpleDocTemplate(
+    #             filepath,
+    #             pagesize=A4,
+    #             rightMargin=72,
+    #             leftMargin=72,
+    #             topMargin=72,
+    #             bottomMargin=72
+    #         )
+            
+    #         # 创建自定义样式
+    #         styles = getSampleStyleSheet()
+            
+    #         # 修改默认样式，使用中文字体
+    #         title_style = ParagraphStyle(
+    #             'ChineseTitle',
+    #             parent=styles['Title'],
+    #             fontName=font_name,
+    #             fontSize=20,
+    #             leading=24
+    #         )
+            
+    #         heading1_style = ParagraphStyle(
+    #             'ChineseHeading1',
+    #             parent=styles['Heading1'],
+    #             fontName=font_name,
+    #             fontSize=16,
+    #             leading=20
+    #         )
+            
+    #         normal_style = ParagraphStyle(
+    #             'ChineseNormal',
+    #             parent=styles['Normal'],
+    #             fontName=font_name,
+    #             fontSize=12,
+    #             leading=16
+    #         )
+            
+    #         # 转换内容
+    #         elements = []
+    #         for para in doc.paragraphs:
+    #             text = para.text.strip()
+    #             if not text:
+    #                 continue
+                    
+    #             # 处理各种样式
+    #             if para.style.name == 'Title' or para.style.name.startswith('Title'):
+    #                 elements.append(Paragraph(text, title_style))
+    #             elif para.style.name.startswith('Heading') or para.style.name == 'Heading 1':
+    #                 elements.append(Paragraph(text, heading1_style))
+    #             else:
+    #                 # 处理文本中的特殊XML字符
+    #                 text = text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+    #                 elements.append(Paragraph(text, normal_style))
+                
+    #             elements.append(Spacer(1, 12))
+            
+    #         # 生成PDF
+    #         pdf_doc.build(elements)
+            
+    #         # 检查是否成功生成
+    #         if os.path.exists(filepath):
+    #             return {
+    #                 'success': True,
+    #                 'filename': filename,
+    #                 'filepath': filepath,
+    #                 'url': f"/uploads/exports/{filename}"
+    #             }
+    #         else:
+    #             return {
+    #                 'success': False,
+    #                 'error': "PDF生成失败，文件不存在",
+    #                 'word_file': word_result
+    #             }
+            
+    #     except Exception as e:
+    #         current_app.logger.error(f"导出志愿方案解析PDF失败: {str(e)}")
+    #         return {
+    #             'success': False,
+    #             'error': str(e),
+    #             'word_file': word_result if 'word_result' in locals() else None
+    #         }
+
 
 def ai_select_college_ids(filtered_colleges, user_info, recommendation_data, is_first=False):
     """
@@ -1320,8 +2080,7 @@ def generate_complete_volunteer_plan(student_id, planner_id, user_data_hash, is_
     # 查找之前的方案
     previous_plan = StudentVolunteerPlan.query.filter_by(
         student_id=student_id,
-        is_current=True,
-        generation_status=StudentVolunteerPlan.GENERATION_STATUS_SUCCESS
+        is_current=True
     ).order_by(StudentVolunteerPlan.version.desc()).first()
     previous_snapshot = json.dumps(previous_plan.student_data_snapshot, ensure_ascii=False) if previous_plan else None
 
@@ -1338,6 +2097,7 @@ def generate_complete_volunteer_plan(student_id, planner_id, user_data_hash, is_
     )
     plan_id = plan['id']
 
+    # 让AI分析两次学生快照的差异，以直观展示历史方案的差异
     from app.tasks.volunteer_tasks import analyze_student_snapshots_ai
     analyze_student_snapshots_ai.delay(plan_id, current_snapshot, previous_snapshot)
 
@@ -1377,6 +2137,16 @@ def generate_complete_volunteer_plan(student_id, planner_id, user_data_hash, is_
             'generation_message': "志愿方案生成完成"
         })
         db.session.commit()
+        
+        # 自动生成总方案和三个类别的分析
+        from app.tasks.volunteer_tasks import analyze_volunteer_plan_task, analyze_volunteer_category_task
+        
+        # 启动总方案分析任务
+        analyze_volunteer_plan_task.delay(plan_id)
+        
+        # 启动三个类别分析任务
+        for category_id in [1, 2, 3]:  # 冲、稳、保
+            analyze_volunteer_category_task.delay(plan_id, category_id)
         
         # 返回完整方案
         return VolunteerPlanService.get_volunteer_plan(plan_id)

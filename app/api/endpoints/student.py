@@ -23,7 +23,8 @@ student_bp = Blueprint(
 from app.api.schemas.student import (
     StudentProfileSchema, AcademicRecordSchema,
     StudentResponseSchema, AcademicRecordResponseSchema,CombinedStudentDataSchema,
-    CombinedStudentResponseSchema
+    CombinedStudentResponseSchema,
+    ComprehensiveStudentResponseSchema
 )
 
 
@@ -475,6 +476,47 @@ def get_my_planner():
         data=student.planner.to_dict(),
         message="获取成功"
     )
+
+@student_bp.route('/comprehensive-info', methods=['GET'])
+@student_bp.response(200, ComprehensiveStudentResponseSchema)
+@jwt_required()
+@api_error_handler
+def get_student_comprehensive_info():
+    """
+    获取学生全部信息
+    
+    获取当前登录用户的所有信息，包括基本信息、学业记录、职业志向和大学偏好
+    """
+    # 获取当前用户ID
+    user_id = get_jwt_identity()
+    user = User.query.get_or_404(int(user_id))
+    
+    # 获取学生档案
+    student = Student.query.filter_by(user_id=user.id).first()
+    if not student:
+        return APIResponse.error("学生档案不存在，请先创建", code=404)
+    
+    # 获取学业记录
+    academic_record = AcademicRecord.query.filter_by(student_id=student.id).first()
+    
+    # 获取职业偏好
+    from app.models.careerPreference import CareerPreference
+    career_preference = CareerPreference.query.filter_by(student_id=student.id).first()
+    
+    # 获取大学偏好
+    from app.models.collegePreference import CollegePreference
+    college_preference = CollegePreference.query.filter_by(student_id=student.id).first()
+    
+    return APIResponse.success(
+        data={
+            'student': student.to_dict(),
+            'academic_record': academic_record.to_dict() if academic_record else None,
+            'career_preference': career_preference.to_dict() if career_preference else None,
+            'college_preference': college_preference.to_dict() if college_preference else None
+        },
+        message="获取学生全部信息成功"
+    )
+
 
 # @student_bp.route('/analyzing_strategy', methods=['POST'])
 # @jwt_required()

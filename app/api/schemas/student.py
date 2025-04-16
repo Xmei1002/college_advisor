@@ -159,3 +159,33 @@ class CombinedStudentDataSchema(Schema):
 class CombinedStudentResponseSchema(Schema):
     student = fields.Nested(StudentResponseSchema, required=True)
     academic_record = fields.Nested(AcademicRecordResponseSchema)
+
+# 职业偏好响应Schema
+class CareerPreferenceResponseSchema2(Schema):
+    id = fields.Integer()
+    student_id = fields.Integer()
+    career_direction = fields.String()
+    academic_preference = fields.String()
+    civil_service_preference = fields.String()
+    employment_location = fields.String()
+    income_expectation = fields.String()
+    work_stability = fields.String()
+
+# 大学偏好响应Schema
+class CollegePreferenceResponseSchema2(Schema):
+    id = fields.Integer()
+    student_id = fields.Integer()
+    preferred_locations = fields.String()
+    tuition_range = fields.String()
+    preferred_majors = fields.String()
+    school_types = fields.String()
+    preferred_schools = fields.String()
+    strategy = fields.String()
+    application_preference = fields.String()
+
+# 综合学生全部信息响应Schema
+class ComprehensiveStudentResponseSchema(Schema):
+    student = fields.Nested(StudentResponseSchema, required=True)
+    academic_record = fields.Nested(AcademicRecordResponseSchema)
+    career_preference = fields.Nested(CareerPreferenceResponseSchema2)
+    college_preference = fields.Nested(CollegePreferenceResponseSchema2)

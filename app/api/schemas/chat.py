@@ -25,7 +25,7 @@ class StreamChatRequestSchema(Schema):
     conversation_type = fields.String(
         required=True, 
         description="会话类型", 
-        validate=validate.OneOf(["changeinfo", "volunteer"])
+        validate=validate.OneOf(["changeinfo", "volunteer", "explaininfo"])
     )
     message = fields.String(required=True, description="消息内容")
     conversation_id = fields.Integer(allow_none=True, description="会话ID，新会话传0或不传")
@@ -107,7 +107,6 @@ class APIPaginationSchema(Schema):
     code = fields.Integer(description="状态码")
     data = fields.List(fields.Raw(), description="数据列表")
     pagination = fields.Nested(PaginationSchema, description="分页信息")
-
 
 # 在schemas.py文件中添加
 class ChatQuestionQuerySchema(Schema):

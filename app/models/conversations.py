@@ -9,6 +9,7 @@ class Conversation(Base):
     # 会话类型常量
     TYPE_CHANGEINFO = 'changeinfo'  # 信息修改
     TYPE_VOLUNTEER = 'volunteer'    # 志愿填报咨询
+    TYPE_EXPLAININFO = 'explaininfo'
     
     # 基础字段继承自Base模型(id, created_at, updated_at)
     student_id = db.Column(db.Integer, nullable=False, comment='学生ID')

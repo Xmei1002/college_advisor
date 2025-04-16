@@ -3,7 +3,8 @@ import os
 from .prompt import (FILTER_COLLEGE_PROMPT, ANALYZING_CATEGORY_PROMPT, 
                      ANALYZING_COLLEGE_PROMPT, ANALYZING_SPECIALTY_PROMPT,
                      ANALYZING_STRATEGY_PROMPT,ANALYZING_SNAPSHOT_PROMPT,CHANGE_STU_CP_PROMPT,
-                     ANALYZING_PLAN_PROMPT,GENERATE_CONVERSATION_TITLE_PROMPT,ANALYZING_FULL_PLAN_PROMPT)
+                     ANALYZING_PLAN_PROMPT,GENERATE_CONVERSATION_TITLE_PROMPT,ANALYZING_FULL_PLAN_PROMPT,
+                     ANALYZING_EXPLAIN_INFO_PROMPT)
 from flask import current_app
 import httpx
 from pathlib import Path
@@ -200,6 +201,16 @@ class MoonshotAI:
             if delta.content:
                 yield delta.content
     
+    @classmethod
+    def analyzing_explain_info(cls, user_input, history_msg, temperature=0.3):
+        system = ANALYZING_EXPLAIN_INFO_PROMPT
+        stream_response =  cls._call_api(user_input=user_input, system=system, history_msg=history_msg, temperature=temperature, stream=True)
+        for chunk in stream_response:
+            delta = chunk.choices[0].delta
+            # 获取生成的块
+            if delta.content:
+                yield delta.content
+
     @classmethod
     def generate_conversation_title(cls, user_message, temperature=0.3):
         """

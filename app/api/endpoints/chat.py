@@ -134,7 +134,7 @@ def stream_chat(args):
     plan_id = args.get('plan_id')  # 可选参数
 
     # 验证会话类型
-    if conversation_type not in [Conversation.TYPE_CHANGEINFO, Conversation.TYPE_VOLUNTEER]:
+    if conversation_type not in [Conversation.TYPE_CHANGEINFO, Conversation.TYPE_VOLUNTEER, Conversation.TYPE_EXPLAININFO]:
         return APIResponse.error(f"无效的会话类型: {conversation_type}", code=400)
     
     # 权限验证
@@ -278,7 +278,7 @@ ANALYZING_PLAN_QUESTIONS = [
     "艺术类院校的就业情况如何？毕业后能从事哪些工作？",
     "理工科和文科哪个专业更有发展前景？",
     "现在计算机专业就业前景如何？",
-    "什么是双非院校？它们和985、211相比有什么优势？"
+    "什么是双非院校？它们和985、211相比有什么差距？"
 ]
 
 # 添加到已有的chat_bp蓝图
