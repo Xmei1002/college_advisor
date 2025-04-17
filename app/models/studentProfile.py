@@ -114,7 +114,7 @@ class AcademicRecord(Base):
     
     def to_dict(self):
         """转换为字典表示"""
-        return {
+        result = {
             'id': self.id,
             'student_id': self.student_id,
             'selected_subjects': self.selected_subjects,
@@ -135,3 +135,69 @@ class AcademicRecord(Base):
             'created_at': self.created_at,
             'updated_at': self.updated_at
         }
+        
+        # 添加排名信息（从ZwhScorerank表获取）
+        ranking = None
+        subject_type = None
+        
+        # 确定科别
+        if self.selected_subjects:
+            subjects = self.selected_subjects.split(',')
+            if '物理' in subjects:
+                subject_type = 2  # 物理组
+            elif '历史' in subjects:
+                subject_type = 1  # 历史组
+
+        score = int(self.gaokao_total_score) if self.gaokao_total_score and int(self.gaokao_total_score) > 0 else int(self.mock_exam_score)
+                
+        # 获取排名
+        if self.gaokao_ranking:
+            ranking = self.gaokao_ranking
+        elif score and subject_type:
+            try:
+                from app.models.zwh_scorerank import ZwhScorerank
+                # 如果存在高考成绩且大于0 ，则使用高考成绩，否则使用模考成绩
+                latest_year = 2025  # 最新年份
+                
+                # 查找最接近的分数记录
+                rank_record = ZwhScorerank.query.filter(
+                    ZwhScorerank.year == latest_year,
+                    ZwhScorerank.suid == subject_type,
+                    ZwhScorerank.scores <= score
+                ).order_by(ZwhScorerank.scores.desc()).first()
+                
+                if rank_record:
+                    ranking = rank_record.nums
+                else:
+                    ranking = self.gaokao_ranking
+            except (ValueError, TypeError, Exception):
+                ranking = self.gaokao_ranking
+            
+        result['ranking'] = ranking
+        
+        # 添加批次信息（本科/专科）
+        education_level = None
+        if score and subject_type:
+            try:
+                from app.models.zwh_xgk_picixian import ZwhXgkPicixian
+                latest_year = 2025  # 最新年份
+                
+                # 查询本科批次线
+                batch_record = ZwhXgkPicixian.query.filter(
+                    ZwhXgkPicixian.dyear == latest_year,
+                    ZwhXgkPicixian.suid == subject_type,
+                    ZwhXgkPicixian.newbid == 11  # 本科批次
+                ).first()
+                
+                if batch_record and batch_record.dscore:
+                    # 比较分数和批次线
+                    if score >= int(batch_record.dscore):
+                        education_level = "本科"
+                    else:
+                        education_level = "专科"
+            except (ValueError, TypeError, Exception):
+                pass
+                
+        result['education_level'] = education_level
+        
+        return result
