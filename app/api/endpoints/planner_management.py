@@ -30,8 +30,8 @@ planner_management_bp = Blueprint(
 @planner_management_bp.route('/list', methods=['GET'])
 @planner_management_bp.arguments(PaginationQuerySchema, location='query')
 @planner_management_bp.response(200, PlannerListResponseSchema)
-@api_error_handler
 @jwt_required()
+@api_error_handler
 def list_planners(query_args):
     user_id = get_jwt_identity()
     user = User.query.get_or_404(int(user_id))
@@ -70,8 +70,8 @@ def list_planners(query_args):
 
 @planner_management_bp.route('/<int:planner_id>', methods=['GET'])
 @planner_management_bp.response(200, PlannerResponseSchema)
-@api_error_handler
 @jwt_required()
+@api_error_handler
 def get_planner(planner_id):
     """
     获取规划师详情
@@ -104,8 +104,8 @@ def get_planner(planner_id):
 @planner_management_bp.route('/create', methods=['POST'])
 @planner_management_bp.arguments(CreatePlannerManagementSchema)
 @planner_management_bp.response(200, PlannerResponseSchema)
-@api_error_handler
 @jwt_required()
+@api_error_handler
 def create_planner(data):
     """
     创建规划师账号
@@ -157,8 +157,8 @@ def create_planner(data):
 @planner_management_bp.route('/<int:planner_id>', methods=['PUT'])
 @planner_management_bp.arguments(UpdatePlannerManagementSchema)
 @planner_management_bp.response(200, PlannerResponseSchema)
-@api_error_handler
 @jwt_required()
+@api_error_handler
 def update_planner(data, planner_id):
     """
     更新规划师账号
@@ -217,8 +217,8 @@ def update_planner(data, planner_id):
 
 @planner_management_bp.route('/<int:planner_id>', methods=['DELETE'])
 @planner_management_bp.response(200)
-@api_error_handler
 @jwt_required()
+@api_error_handler
 def delete_planner(planner_id):
     """
     删除规划师账号
