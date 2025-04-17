@@ -6,6 +6,7 @@ from app.api.endpoints.auth import auth_bp
 from app.api.endpoints.student import student_bp
 from app.api.endpoints.preference import preference_bp  # 导入志愿填报意向蓝图
 from app.api.endpoints.planner import planner_bp  # 导入规划师蓝图
+from app.api.endpoints.planner_management import planner_management_bp  # 导入规划师管理蓝图
 from app.api.endpoints.recommendation import recommendation_bp
 from app.api.endpoints.base_data import base_data_bp
 from app.api.endpoints.volunteer_plan import volunteer_plan_bp
@@ -35,7 +36,8 @@ register_blueprint(tasks_bp, '/tasks')
 register_blueprint(auth_bp, '/auth')
 register_blueprint(student_bp, '/students')  # 注册学生蓝图
 register_blueprint(preference_bp, '/preference')  # 志愿填报意向接口
-register_blueprint(planner_bp, '/planners')  # 志愿填报意向接口
+register_blueprint(planner_bp, '/planners')  # 规划师与学生关系接口
+register_blueprint(planner_management_bp, '/planner-management')  # 规划师账号管理接口
 register_blueprint(recommendation_bp, '/recommendation')
 register_blueprint(base_data_bp, '/base-data')
 register_blueprint(volunteer_plan_bp, '/volunteer-plans')

@@ -1,6 +1,4 @@
- 
-from marshmallow import Schema, fields, validate, validates, ValidationError
-
+from marshmallow import Schema, fields, validate 
 
 class HealthSchema(Schema):
     """健康检查响应模式"""
@@ -8,6 +6,15 @@ class HealthSchema(Schema):
     version = fields.String(required=True, description="API版本")
     timestamp = fields.DateTime(required=True, description="当前服务器时间")
     environment = fields.String(required=True, description="运行环境")
+    
+class PaginationSchema(Schema):
+    """分页信息"""
+    total = fields.Integer(description="总记录数")
+    pages = fields.Integer(description="总页数")
+    page = fields.Integer(description="当前页")
+    per_page = fields.Integer(description="每页记录数")
+    has_next = fields.Boolean(description="是否有下一页")
+    has_prev = fields.Boolean(description="是否有上一页")
 
 
 # 发送验证码请求模式

@@ -28,6 +28,17 @@ class AuthService:
         return user
     
     @staticmethod
+    def create_admin(username, password):
+        """创建管理员用户"""
+        user = User(
+            username=username,
+            user_type=User.USER_TYPE_ADMIN
+        )
+        user.password = password
+        user.save()
+        return user
+    
+    @staticmethod
     def authenticate(username, password):
         """验证用户"""
         user = User.query.filter_by(username=username).first()

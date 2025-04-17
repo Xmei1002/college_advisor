@@ -101,7 +101,7 @@ def get_my_students(args):
         query = query.order_by(User.updated_at.desc())
         
         # 执行分页查询
-        pagination = query.paginate(page=page, per_page=per_page)
+        pagination = query.paginate(page=page, per_page=per_page, error_out=False)
         
         # 获取详细的学生信息
         students_data = []

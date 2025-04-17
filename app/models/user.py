@@ -14,6 +14,7 @@ class User(Base):
     # 用户类型
     USER_TYPE_STUDENT = 'student'
     USER_TYPE_PLANNER = 'planner'
+    USER_TYPE_ADMIN = 'admin'
     
     user_type = db.Column(db.String(20), nullable=False)
     
@@ -56,6 +57,10 @@ class User(Base):
     
     def is_planner(self):
         return self.user_type == self.USER_TYPE_PLANNER
+    
+    def is_admin(self):
+        """判断用户是否为管理员"""
+        return self.user_type == self.USER_TYPE_ADMIN
     
     # 更新登录信息
     def update_login_info(self, ip):

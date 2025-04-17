@@ -1,5 +1,6 @@
 # app/api/schemas/chat.py
 from marshmallow import Schema, fields, validate
+from app.api.schemas import PaginationSchema
 
 # 查询参数Schema
 class ConversationQuerySchema(Schema):
@@ -65,15 +66,6 @@ class ConversationDetailSchema(ConversationSchema):
     """会话详情响应，包含消息列表"""
     messages = fields.List(fields.Nested(MessageSchema), description="消息列表")
     pagination = fields.Dict(description="分页信息")
-
-class PaginationSchema(Schema):
-    """分页信息"""
-    total = fields.Integer(description="总记录数")
-    pages = fields.Integer(description="总页数")
-    page = fields.Integer(description="当前页")
-    per_page = fields.Integer(description="每页记录数")
-    has_next = fields.Boolean(description="是否有下一页")
-    has_prev = fields.Boolean(description="是否有上一页")
 
 class MessageListResponseSchema(Schema):
     """消息列表响应"""

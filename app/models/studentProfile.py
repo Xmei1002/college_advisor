@@ -1,5 +1,7 @@
 from app.extensions import db
 from app.models.base import Base
+from app.models.zwh_scorerank import ZwhScorerank
+from app.models.zwh_xgk_picixian import ZwhXgkPicixian
 
 class Student(Base):
     """学生信息模型"""
@@ -147,7 +149,8 @@ class AcademicRecord(Base):
                 subject_type = 2  # 物理组
             elif '历史' in subjects:
                 subject_type = 1  # 历史组
-
+                
+        # 如果存在高考成绩且大于0 ，则使用高考成绩，否则使用模考成绩
         score = int(self.gaokao_total_score) if self.gaokao_total_score and int(self.gaokao_total_score) > 0 else int(self.mock_exam_score)
                 
         # 获取排名
@@ -155,8 +158,6 @@ class AcademicRecord(Base):
             ranking = self.gaokao_ranking
         elif score and subject_type:
             try:
-                from app.models.zwh_scorerank import ZwhScorerank
-                # 如果存在高考成绩且大于0 ，则使用高考成绩，否则使用模考成绩
                 latest_year = 2025  # 最新年份
                 
                 # 查找最接近的分数记录
@@ -179,7 +180,6 @@ class AcademicRecord(Base):
         education_level = None
         if score and subject_type:
             try:
-                from app.models.zwh_xgk_picixian import ZwhXgkPicixian
                 latest_year = 2025  # 最新年份
                 
                 # 查询本科批次线

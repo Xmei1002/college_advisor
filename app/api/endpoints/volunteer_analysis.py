@@ -414,7 +414,7 @@ def get_plan_analysis(plan_id):
     ).first()
     
     if not analysis:
-        return APIResponse.error(message="未找到分析结果")
+        return APIResponse.success(message="未找到分析结果")
     
     # 返回结果
     result = analysis.to_dict()
