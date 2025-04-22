@@ -20,7 +20,6 @@ planner_bp = Blueprint(
 )
 
 from app.models.collegePreference import CollegePreference
-from app.models.careerPreference import CareerPreference
 # @planner_bp.route('/assign-student', methods=['POST'])
 # @planner_bp.arguments(AssignStudentSchema)
 # @planner_bp.response(200)
@@ -224,8 +223,6 @@ def get_student_preferences(student_id):
     # 获取志愿填报意向
     college_preference = CollegePreference.query.filter_by(student_id=student.id).first()
     
-    # 获取就业倾向信息
-    career_preference = CareerPreference.query.filter_by(student_id=student.id).first()
     if student_user.consultation_status == User.CONSULTATION_STATUS_PENDING:
         student_user.consultation_status = User.CONSULTATION_STATUS_IN_PROGRESS
         student_user.save()
@@ -234,7 +231,7 @@ def get_student_preferences(student_id):
     result = {
         "user": student_user.to_dict(),
         "college_preference": college_preference.to_dict() if college_preference else None,
-        "career_preference": career_preference.to_dict() if career_preference else None
+        # "career_preference": career_preference.to_dict() if career_preference else None
     }
     
     return APIResponse.success(
@@ -272,9 +269,6 @@ def planner_get_student_comprehensive_info(student_id):
     # 获取学业记录
     academic_record = AcademicRecord.query.filter_by(student_id=student.id).first()
     
-    # 获取职业偏好
-    career_preference = CareerPreference.query.filter_by(student_id=student.id).first()
-    
     # 获取大学偏好
     college_preference = CollegePreference.query.filter_by(student_id=student.id).first()
     
@@ -282,7 +276,6 @@ def planner_get_student_comprehensive_info(student_id):
         data={
             'student': student.to_dict(),
             'academic_record': academic_record.to_dict() if academic_record else None,
-            'career_preference': career_preference.to_dict() if career_preference else None,
             'college_preference': college_preference.to_dict() if college_preference else None
         },
         message="获取学生全部信息成功"

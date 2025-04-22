@@ -5,7 +5,7 @@ from app.extensions import db
 from app.models.conversations import Conversation
 from app.models.messages import Message
 from app.models.user import User
-from app.services.ai.moonshot import MoonshotAI
+from app.services.ai.llm_service import LLMService
 from datetime import datetime
 import json
 import time
@@ -211,7 +211,7 @@ class ChatService:
         return Message.query.get_or_404(message_id)
     
     @classmethod
-    def get_recent_messages(cls, conversation_id, limit=20):
+    def get_recent_messages(cls, conversation_id, limit=10):
         """
         获取最近的消息记录（用于AI上下文）
         
@@ -318,7 +318,7 @@ class ChatService:
             # 根据会话类型和是否有plan决定调用方式
             if conversation_type == Conversation.TYPE_VOLUNTEER:
                 # 使用方案分析
-                ai_stream = MoonshotAI.analyzing_plan(message_content, formatted_history, plan_id)
+                ai_stream = LLMService.kimi_tools(message_content, formatted_history)
                 
                 # 处理AI流式响应
                 full_content = ""
@@ -329,100 +329,101 @@ class ChatService:
                 
                 # 更新AI消息内容
                 ai_message.content = full_content
-
-            elif conversation_type == Conversation.TYPE_EXPLAININFO:
-                # 使用信息解析
-                ai_stream = MoonshotAI.analyzing_explain_info(message_content, formatted_history, plan_id)
+            else:
+                raise ValueError("未知的会话类型")
+            # elif conversation_type == Conversation.TYPE_EXPLAININFO:
+            #     # 使用信息解析
+            #     ai_stream = LLMService.analyzing_explain_info(message_content, formatted_history, plan_id)
                 
-                # 处理AI流式响应
-                full_content = ""
-                for chunk in ai_stream:
-                    if chunk:
-                        full_content += chunk
-                        yield json.dumps({"type": "chunk", "content": chunk})
+            #     # 处理AI流式响应
+            #     full_content = ""
+            #     for chunk in ai_stream:
+            #         if chunk:
+            #             full_content += chunk
+            #             yield json.dumps({"type": "chunk", "content": chunk})
                 
-                # 更新AI消息内容
-                ai_message.content = full_content
+            #     # 更新AI消息内容
+            #     ai_message.content = full_content
 
-            elif conversation_type == Conversation.TYPE_CHANGEINFO:
-                # 处理修改报考信息的请求
-                preference = CollegePreference.query.filter_by(student_id=student_id).first()
-                if not preference:
-                    yield json.dumps({"type": "error", "message": "未找到学生报考策略"})
-                    return
+            # elif conversation_type == Conversation.TYPE_CHANGEINFO:
+            #     # 处理修改报考信息的请求
+            #     preference = CollegePreference.query.filter_by(student_id=student_id).first()
+            #     if not preference:
+            #         yield json.dumps({"type": "error", "message": "未找到学生报考策略"})
+            #         return
                     
-                # 将偏好信息转换为字符串
-                stu_cp_str = json.dumps(preference.to_dict(send_ai=True), ensure_ascii=False)
+            #     # 将偏好信息转换为字符串
+            #     stu_cp_str = json.dumps(preference.to_dict(send_ai=True), ensure_ascii=False)
                 
-                # 调用AI获取完整的JSON响应（非流式）
-                ai_res_json = MoonshotAI.change_student_college_preferences(message_content, stu_cp_str)
+            #     # 调用AI获取完整的JSON响应（非流式）
+            #     ai_res_json = LLMService.change_student_college_preferences(message_content, stu_cp_str)
                  
-                # 解析AI返回的内容
-                try:
-                    json_data = json.loads(ai_res_json)
+            #     # 解析AI返回的内容
+            #     try:
+            #         json_data = json.loads(ai_res_json)
                     
-                    # 处理变更
-                    changes = json_data.get('changes', [])
-                    if changes:
-                        # 更新数据库
-                        updated_preference = update_college_preferences(student_id, changes)
-                        if not updated_preference:
-                            yield json.dumps({"type": "error", "message": "更新报考策略失败"})
-                            return
+            #         # 处理变更
+            #         changes = json_data.get('changes', [])
+            #         if changes:
+            #             # 更新数据库
+            #             updated_preference = update_college_preferences(student_id, changes)
+            #             if not updated_preference:
+            #                 yield json.dumps({"type": "error", "message": "更新报考策略失败"})
+            #                 return
                     
-                    # 获取确认消息
-                    confirmation_message = json_data.get('confirmation_message', '')
-                    if confirmation_message:
-                        # 流式输出确认消息
-                        full_content = ""
-                        for char in confirmation_message:
-                            chunk = char
-                            full_content += chunk
-                            yield json.dumps({"type": "chunk", "content": chunk})
+            #         # 获取确认消息
+            #         confirmation_message = json_data.get('confirmation_message', '')
+            #         if confirmation_message:
+            #             # 流式输出确认消息
+            #             full_content = ""
+            #             for char in confirmation_message:
+            #                 chunk = char
+            #                 full_content += chunk
+            #                 yield json.dumps({"type": "chunk", "content": chunk})
                         
-                        # 更新AI消息内容 - 只保存确认消息
-                        ai_message.content = confirmation_message
+            #             # 更新AI消息内容 - 只保存确认消息
+            #             ai_message.content = confirmation_message
 
-                    restart_generation = json_data.get('restart_generation', False)
-                    if restart_generation:
-                        from app.tasks.volunteer_tasks import generate_volunteer_plan_task
+            #         restart_generation = json_data.get('restart_generation', False)
+            #         if restart_generation:
+            #             from app.tasks.volunteer_tasks import generate_volunteer_plan_task
 
-                        student_data = StudentDataService.extract_college_recommendation_data(student_id)
-                        # 计算当前数据哈希
-                        current_hash = calculate_user_data_hash(student_data)
+            #             student_data = StudentDataService.extract_college_recommendation_data(student_id)
+            #             # 计算当前数据哈希
+            #             current_hash = calculate_user_data_hash(student_data)
                         
-                        # 检查是否存在最近的成功方案
-                        latest_plan = StudentVolunteerPlan.query.filter_by(
-                            student_id=student_id,
-                            is_current=True,
-                            generation_status=StudentVolunteerPlan.GENERATION_STATUS_SUCCESS
-                        ).order_by(StudentVolunteerPlan.version.desc()).first()
-                        message = "已为您重新生成志愿表，请在<志愿方案>中查看。"
-                        # 如果存在最近方案且数据哈希相同，拒绝重新生成
-                        if latest_plan and latest_plan.user_data_hash == current_hash:
-                            message="用户数据未发生变化，无需重新生成志愿方案",
-                        else:
-                            # 启动异步任务，并传递当前数据哈希
-                            task = generate_volunteer_plan_task.delay(
-                                student_id=student_id,
-                                planner_id=planner_id,
-                                user_data_hash=current_hash
-                            )
-                        full_content = ""
-                        for char in message:
-                            chunk = char
-                            full_content += chunk
-                            yield json.dumps({"type": "chunk", "content": chunk})
+            #             # 检查是否存在最近的成功方案
+            #             latest_plan = StudentVolunteerPlan.query.filter_by(
+            #                 student_id=student_id,
+            #                 is_current=True,
+            #                 generation_status=StudentVolunteerPlan.GENERATION_STATUS_SUCCESS
+            #             ).order_by(StudentVolunteerPlan.version.desc()).first()
+            #             message = "已为您重新生成志愿表，请在<志愿方案>中查看。"
+            #             # 如果存在最近方案且数据哈希相同，拒绝重新生成
+            #             if latest_plan and latest_plan.user_data_hash == current_hash:
+            #                 message="用户数据未发生变化，无需重新生成志愿方案",
+            #             else:
+            #                 # 启动异步任务，并传递当前数据哈希
+            #                 task = generate_volunteer_plan_task.delay(
+            #                     student_id=student_id,
+            #                     planner_id=planner_id,
+            #                     user_data_hash=current_hash
+            #                 )
+            #             full_content = ""
+            #             for char in message:
+            #                 chunk = char
+            #                 full_content += chunk
+            #                 yield json.dumps({"type": "chunk", "content": chunk})
 
-                        ai_message.content = message
+            #             ai_message.content = message
 
-                except json.JSONDecodeError as e:
-                    yield json.dumps({"type": "error", "message": "处理AI响应失败，请重试"})
-                    return
-                except Exception as e:
-                    logger.error(f"处理报考策略更新失败: {str(e)}")
-                    yield json.dumps({"type": "error", "message": "更新报考策略失败，请重试"})
-                    return
+            #     except json.JSONDecodeError as e:
+            #         yield json.dumps({"type": "error", "message": "处理AI响应失败，请重试"})
+            #         return
+            #     except Exception as e:
+            #         logger.error(f"处理报考策略更新失败: {str(e)}")
+            #         yield json.dumps({"type": "error", "message": "更新报考策略失败，请重试"})
+            #         return
             
             # 更新会话最后消息时间
             conversation.last_message_time = datetime.now()

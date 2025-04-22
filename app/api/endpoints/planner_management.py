@@ -6,7 +6,6 @@ from app.utils.decorators import api_error_handler
 from app.models.user import User
 from app.models.planner_info import PlannerInfo
 from flask_smorest import Blueprint
-from app.utils.auth import admin_required
 from app.extensions import db
 from app.core.auth.service import AuthService
 from flask import current_app

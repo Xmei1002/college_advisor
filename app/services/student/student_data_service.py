@@ -19,7 +19,7 @@ class StudentDataService:
         student = Student.query.get_or_404(student_id)
         academic_record = student.academic_record  # 已建立关联
         college_pref = student.college_preference  # 已建立关联
-        career_pref = student.career_preference    # 已建立关联
+        # 注意：career_preference已合并到college_preference中
         
         # 2. 提取学生分数
         student_score = StudentDataService._parse_score(academic_record.gaokao_total_score)
@@ -53,7 +53,7 @@ class StudentDataService:
             student_score if (student_score and student_score > 0) else mock_exam_score,
             subject_type, 
         )
-        print('学历层次', education_level)
+        # print('学历层次', education_level)
         # 组织返回数据
         result = {
             'student_id': student.id,
@@ -190,7 +190,6 @@ class StudentDataService:
         :param province_id: 省份ID
         :return: 教育层次(11-本科，12-专科)
         """
-        
         # 默认为本科
         default_level = 11
     
@@ -307,8 +306,8 @@ class StudentDataService:
         # 获取学生完整数据
         student = Student.query.get_or_404(student_id)
         academic_record = student.academic_record  # 假设已建立关联
-        career_pref = getattr(student, 'career_preference', None)
         college_pref = getattr(student, 'college_preference', None)
+        # 注意：career_preference已合并到college_preference中
         
         # 开始生成文本报告
         text_parts = []
@@ -323,6 +322,8 @@ class StudentDataService:
         text_parts.append(f"姓名：{student.name}")
         text_parts.append(f"性别：{student.gender}")
         text_parts.append(f"民族：{student.ethnicity or '未填写'}")
+        text_parts.append(f"政治面貌：{student.political_status or '未填写'}")  # 新增政治面貌
+        text_parts.append(f"出生日期：{student.birth_date.strftime('%Y-%m-%d') if student.birth_date else '未填写'}")  # 新增出生日期
         text_parts.append(f"联系电话：{student.phone or '未填写'}")
         text_parts.append(f"微信/QQ：{student.wechat_qq or '未填写'}")
         text_parts.append(f"毕业学校：{student.school or '未填写'}")
@@ -334,12 +335,14 @@ class StudentDataService:
         # -- 家长信息 --
         text_parts.append("【家长信息】")
         if student.guardian1_name or student.guardian1_phone:
-            text_parts.append(f"第一联系人：{student.guardian1_name or '未填写'} ({student.guardian1_phone or '未填写电话'})")
+            relation1 = f"({student.guardian1_relation})" if student.guardian1_relation else ""  # 新增关系
+            text_parts.append(f"第一联系人：{student.guardian1_name or '未填写'}{relation1} ({student.guardian1_phone or '未填写电话'})")
         else:
             text_parts.append("第一联系人：未填写")
             
         if student.guardian2_name or student.guardian2_phone:
-            text_parts.append(f"第二联系人：{student.guardian2_name or '未填写'} ({student.guardian2_phone or '未填写电话'})")
+            relation2 = f"({student.guardian2_relation})" if student.guardian2_relation else ""  # 新增关系
+            text_parts.append(f"第二联系人：{student.guardian2_name or '未填写'}{relation2} ({student.guardian2_phone or '未填写电话'})")
         else:
             text_parts.append("第二联系人：未填写")
         text_parts.append("")
@@ -349,6 +352,7 @@ class StudentDataService:
         text_parts.append(f"左眼视力：{student.left_eye_vision or '未检测'}")
         text_parts.append(f"右眼视力：{student.right_eye_vision or '未检测'}")
         text_parts.append(f"色觉情况：{student.color_vision or '未检测'}")
+        text_parts.append(f"嗅觉情况：{student.smell_condition or '未检测'}")  # 新增嗅觉情况
         text_parts.append(f"身高：{student.height or '未填写'} CM")
         text_parts.append(f"体重：{student.weight or '未填写'} KG")
         text_parts.append(f"是否失信考生：{'是' if student.is_discredited else '否'}")
@@ -366,6 +370,8 @@ class StudentDataService:
             text_parts.append(f"标准分数：{academic_record.standard_score or '未填写'}")
             if academic_record.bonus_type:
                 text_parts.append(f"加分类型：{academic_record.bonus_type}")
+            if academic_record.bonus_detail:  # 新增加分情况详细说明
+                text_parts.append(f"加分情况：{academic_record.bonus_detail}")
             
             # 添加分科成绩
             text_parts.append("\n【分科成绩】")
@@ -397,23 +403,15 @@ class StudentDataService:
         text_parts.append(f"劣势科目：{student.weak_subjects or '未填写'}")
         text_parts.append("")
         
-        # -- 第三部分：就业倾向 --
-        text_parts.append("【就业倾向】")
-        if career_pref:
-            text_parts.append(f"就业发展方向：{career_pref.career_direction or '未填写'}")
-            text_parts.append(f"学术学位偏好：{career_pref.academic_preference or '未填写'}")
-            text_parts.append(f"公务员意向：{career_pref.civil_service_preference or '未填写'}")
-            text_parts.append(f"就业地区：{career_pref.employment_location or '未填写'}")
-            text_parts.append(f"收入预期：{career_pref.income_expectation or '未填写'}")
-            text_parts.append(f"工作稳定性要求：{career_pref.work_stability or '未填写'}")
-        else:
-            text_parts.append("暂无就业倾向信息")
-        text_parts.append("")
-        
-        # -- 第四部分：志愿填报意向 --
-        text_parts.append("【志愿填报意向】")
+        # -- 第三部分：就业倾向与报考意向 (已合并) --
+        text_parts.append("【就业倾向与志愿填报意向】")
         if college_pref:
-            # 处理逗号分隔的列表
+            # 就业倾向信息（从CollegePreference获取）
+            text_parts.append(f"就业发展方向：{college_pref.career_direction or '未填写'}")
+            text_parts.append(f"公务员意向：{college_pref.civil_service_preference or '未填写'}" if hasattr(college_pref, 'civil_service_preference') else "")
+            text_parts.append(f"就业地区偏好：{college_pref.employment_location or '未填写'}" if hasattr(college_pref, 'employment_location') else "")
+            
+            # 志愿填报意向信息
             if college_pref.preferred_locations:
                 locations = college_pref.preferred_locations.split(',')
                 text_parts.append(f"意向地域：{', '.join(locations)}")
@@ -441,6 +439,28 @@ class StudentDataService:
                 text_parts.append("意向学校：未填写")
                 
             text_parts.append(f"填报策略：{college_pref.strategy or '未填写'}")
+            text_parts.append(f"家庭背景：{college_pref.family_background or '未填写'}")
+            # 志愿梯度策略相关
+            text_parts.append(f"志愿梯度策略：{college_pref.volunteer_gradient_strategy or '未填写'}")
+            if college_pref.volunteer_gradient_strategy == '自由设置' and college_pref.custom_gradient_counts:
+                gradient_counts = college_pref.custom_gradient_counts
+                if isinstance(gradient_counts, str):
+                    try:
+                        import json
+                        gradient_counts = json.loads(gradient_counts)
+                    except:
+                        gradient_counts = {}
+                text_parts.append(f"自定义梯度设置：冲刺志愿{gradient_counts.get('chasing', 0)}个，稳妥志愿{gradient_counts.get('stable', 0)}个，保底志愿{gradient_counts.get('safe', 0)}个")
+                
+            text_parts.append(f"报考批次：{college_pref.application_batch or '未填写'}")
+            
+            # 报考限制信息
+            text_parts.append("\n【报考限制条件】")
+            text_parts.append(f"接受不可转专业中外合办专业：{'是' if college_pref.accept_nonchangeable_major else '否'}")
+            text_parts.append(f"具备美术基础：{'是' if college_pref.has_art_foundation else '否'}")
+            text_parts.append(f"接受大学期间需出国就读：{'是' if college_pref.accept_overseas_study else '否'}")
+            text_parts.append(f"接受学费刺客专业：{'是' if college_pref.accept_high_fee_increase else '否'}")
+            text_parts.append(f"接受在两个城市上学安排：{'是' if college_pref.accept_dual_city_arrangement else '否'}")
             
             if college_pref.application_preference:
                 text_parts.append("\n【报考倾向详情】")
@@ -485,6 +505,9 @@ class StudentDataService:
             '意向地域': college_pref.preferred_locations if college_pref else '',
             '意向专业': college_pref.preferred_majors if college_pref else '',
             '学费范围': college_pref.tuition_range if college_pref else '',
+            '志愿梯度策略': college_pref.volunteer_gradient_strategy if college_pref else '',
+            '报考批次': college_pref.application_batch if college_pref else '',
+            '就业方向': college_pref.career_direction if college_pref else '',
             '模考成绩': academic_record.mock_exam_score or ''
             # 以下是原始数据，用于比较变化，保持与extract_college_recommendation_data一致的格式
             # '_原始数据': recommendation_data

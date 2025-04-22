@@ -3,7 +3,8 @@ from app.models.user import User
 from app.models.studentProfile import Student,AcademicRecord
 from app.models.planner_info import PlannerInfo
 from app.models.collegePreference import CollegePreference
-from app.models.careerPreference import CareerPreference
+# from app.models.careerPreference import CareerPreference
+from app.models.prompt_template import PromptTemplate
 
 # ZWH相关表模型导入
 from app.models.zwh_areas import ZwhAreas
@@ -29,3 +30,4 @@ from app.models.student_volunteer_plan import StudentVolunteerPlan, VolunteerCol
 # AI聊天
 from app.models.messages import Message
 from app.models.conversations import Conversation
+from app.models.llm_configuration import LLMConfiguration

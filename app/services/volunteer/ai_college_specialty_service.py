@@ -6,7 +6,7 @@ from app.models.user import User
 from app.services.student.student_data_service import StudentDataService
 from sqlalchemy.exc import SQLAlchemyError
 import json
-from app.services.ai.moonshot import MoonshotAI
+from app.services.ai.llm_service import LLMService
 from datetime import datetime, timezone
 
 class AICollegeSpecialtyAnalysisService:
@@ -147,7 +147,7 @@ class AICollegeSpecialtyAnalysisService:
         """
         
         # 实际调用AI分析
-        res = MoonshotAI.analyzing_college(
+        res = LLMService.analyzing_college(
             user_info=user_info,
             college_json=college_json
         )
@@ -166,7 +166,7 @@ class AICollegeSpecialtyAnalysisService:
         """
         # 这里调用MoonshotAI进行专业分析
         # 实际调用AI分析
-        res = MoonshotAI.analyzing_specialty(
+        res = LLMService.analyzing_specialty(
             user_info=user_info,
             specialty_json=specialty_json
         )

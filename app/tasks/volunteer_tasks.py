@@ -7,7 +7,7 @@ from app.services.volunteer.volunteer_analysis_service import AIVolunteerAnalysi
 from app.services.volunteer.ai_college_specialty_service import AICollegeSpecialtyAnalysisService
 from app.models.student_volunteer_plan import StudentVolunteerPlan, VolunteerCategoryAnalysis
 from app.extensions import db
-from app.services.ai.moonshot import MoonshotAI
+from app.services.ai.llm_service import LLMService
 from app.services.volunteer.consultation_status_service import update_student_plan_status
 from app.services.chat.chat_service import ChatService
 
@@ -144,7 +144,7 @@ def analyze_student_snapshots_ai(self, plan_id, current_snapshot, previous_snaps
         if previous_snapshot is None:
             current_plan.data_changes = "第一次生成方案"
         else:
-            changes_text = MoonshotAI.analyzing_student_snapshots(current_snapshot, previous_snapshot)
+            changes_text = LLMService.analyzing_student_snapshots(current_snapshot, previous_snapshot)
             # 更新方案的变更记录和分析状态
             current_plan.data_changes = changes_text
         db.session.commit()
@@ -176,7 +176,7 @@ def generate_conversation_title_task(self, conversation_id, message_content):
     try:
         
         # 调用AI生成标题
-        generated_title = MoonshotAI.generate_conversation_title(message_content)
+        generated_title = LLMService.generate_conversation_title(message_content)
         
         # 确保生成的标题不为空且不超过30个字符
         if generated_title and len(generated_title.strip()) > 0:

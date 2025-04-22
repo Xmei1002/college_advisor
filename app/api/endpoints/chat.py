@@ -1,5 +1,5 @@
 # app/api/endpoints/chat.py
-from flask import Response, current_app
+from flask import Response, current_app, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.utils.response import APIResponse
 from app.utils.decorators import api_error_handler
@@ -22,6 +22,8 @@ from app.api.schemas.chat import (
     ChatQuestionQuerySchema
 )
 import random
+from app.services.ai.llm_service import LLMService
+from app.core.recommendation.ai_function_call import get_college_detail_by_name
 
 chat_bp = Blueprint(
     'chat', 
@@ -337,4 +339,17 @@ def get_conversation_title(conversation_id):
     return APIResponse.success(
         data={"id": conversation.id, "title": conversation.title},
         message="获取会话标题成功"
+    )
+
+
+@chat_bp.route('/test', methods=['POST'])
+@jwt_required()
+@api_error_handler
+def chat_test():
+    input = request.json.get('input')
+    res = LLMService.kimi_tools(input)
+    # res = get_college_detail_by_name('郑州大学')
+    return APIResponse.success(
+        data=res,
+        message="成功"
     )

@@ -66,7 +66,6 @@ class CollegeRepository:
         :param area_id: 地区ID
         :return: 包含自身及所有子地区ID的列表
         """
-        from app.models.zwh_areas import ZwhAreas
         
         # 如果没有指定地区ID，返回空列表
         if not area_id:
@@ -160,7 +159,6 @@ class CollegeRepository:
         :return: 符合条件的专业组列表
         """
 
-        
         # 参数预处理
         area_ids = area_ids or []
         specialty_types = specialty_types or []

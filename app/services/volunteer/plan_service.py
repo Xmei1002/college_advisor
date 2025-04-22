@@ -4,7 +4,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.extensions import db
 from app.models.student_volunteer_plan import StudentVolunteerPlan, VolunteerCollege, VolunteerSpecialty, VolunteerCategoryAnalysis
 from app.services.college.recommendation_service import RecommendationService
-from app.services.ai.moonshot import MoonshotAI
+from app.services.ai.llm_service import LLMService
 from app.services.ai.ollama import OllamaAPI
 import json
 from app.services.student.student_data_service import StudentDataService
@@ -1863,7 +1863,7 @@ def ai_recommend_with_score(filtered_colleges, user_info):
     
     simplified_colleges_json = json.dumps(simplified_colleges, ensure_ascii=False)
     # 调用AI服务并解析结果
-    ai_res_json = MoonshotAI.filter_colleges(user_info, simplified_colleges_json)
+    ai_res_json = LLMService.filter_colleges(user_info, simplified_colleges_json)
     # ai_res_json = OllamaAPI.filter_colleges(user_info, simplified_colleges_json)
     ai_res_dict = json.loads(ai_res_json)
     

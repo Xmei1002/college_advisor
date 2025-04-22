@@ -1,5 +1,5 @@
 # app/api/schemas/student.py
-from marshmallow import ValidationError, validates,validates_schema,Schema, fields, validate
+from marshmallow import ValidationError, validates, validates_schema, Schema, fields, validate
 
 class StudentProfileSchema(Schema):
     """学生基本信息提交验证Schema"""
@@ -11,25 +11,36 @@ class StudentProfileSchema(Schema):
     school = fields.String(description="毕业学校")
     address = fields.String(description="家庭住址")
     candidate_number = fields.String(description="准考证号")
-    id_card_number = fields.String(allow_none=True,description="身份证号")  # 新增字段
+    id_card_number = fields.String(allow_none=True, description="身份证号")
     household_type = fields.String(required=True, validate=validate.OneOf(["农村户口", "城市户口"]), description="户籍类型")
     student_type = fields.String(validate=validate.OneOf(["应届生", "复读生"]), description="考生类型")
     
+    # 新增政治面貌字段
+    political_status = fields.String(description="政治面貌，团员/党员")
+    # 新增出生日期字段
+    birth_date = fields.Date(description="出生日期")
+    
+    # 新增联系人关系字段
+    guardian1_relation = fields.String(description="第一联系人关系")
     guardian1_name = fields.String(description="第一联系人姓名")
     guardian1_phone = fields.String(description="第一联系人电话")
+    guardian2_relation = fields.String(description="第二联系人关系")
     guardian2_name = fields.String(description="第二联系人姓名")
     guardian2_phone = fields.String(description="第二联系人电话")
     
     left_eye_vision = fields.String(description="左眼视力情况")
     right_eye_vision = fields.String(description="右眼视力情况")
     color_vision = fields.String(description="色觉情况")
+    # 新增嗅觉情况字段
+    smell_condition = fields.String(description="嗅觉情况，异常/正常")
     height = fields.String(description="身高(CM)")
     weight = fields.String(description="体重(KG)")
-    
+    other_condition = fields.String(description="其他情况")
+
     foreign_language = fields.String(description="外语语种")
     
     is_discredited = fields.Boolean(description="是否失信考生")
-    discredit_reason = fields.String(description="失信原因")  # 新增字段
+    discredit_reason = fields.String(description="失信原因")
     strong_subjects = fields.String(description="优势科目")
     weak_subjects = fields.String(description="劣势科目")
 
@@ -62,12 +73,13 @@ class AcademicRecordSchema(Schema):
         
         if len(other_selected) != 2:
             raise ValidationError("必须从化学、生物、地理、政治中选择2门科目")
-        
     
     gaokao_total_score = fields.String(description="高考总分")
     gaokao_ranking = fields.String(description="高考位次")
     standard_score = fields.String(description="标准分数")
+    # 拆分加分信息
     bonus_type = fields.String(description="加分类型")
+    bonus_detail = fields.String(description="加分情况")
     
     chinese_score = fields.String(description="语文成绩")
     math_score = fields.String(description="数学成绩")
@@ -103,25 +115,33 @@ class StudentResponseSchema(Schema):
     school = fields.String()
     address = fields.String()
     candidate_number = fields.String()
-    id_card_number = fields.String()  # 新增字段
+    id_card_number = fields.String()
     household_type = fields.String()
     student_type = fields.String()
+    
+    # 新增字段
+    political_status = fields.String()
+    birth_date = fields.Date()
 
+    guardian1_relation = fields.String()
     guardian1_name = fields.String()
     guardian1_phone = fields.String()
+    guardian2_relation = fields.String()
     guardian2_name = fields.String()
     guardian2_phone = fields.String()
 
     left_eye_vision = fields.String()
     right_eye_vision = fields.String()
     color_vision = fields.String()
+    smell_condition = fields.String()
     height = fields.Float()
     weight = fields.Float()
-
+    other_condition = fields.String()
+    
     foreign_language = fields.String()
 
     is_discredited = fields.Boolean()
-    discredit_reason = fields.String()  # 新增字段
+    discredit_reason = fields.String()
     strong_subjects = fields.String()
     weak_subjects = fields.String()
 
@@ -136,6 +156,7 @@ class AcademicRecordResponseSchema(Schema):
     gaokao_ranking = fields.String()
     standard_score = fields.String()
     bonus_type = fields.String()
+    bonus_detail = fields.String()  # 新增字段
 
     chinese_score = fields.String()
     math_score = fields.String()
@@ -182,6 +203,19 @@ class CollegePreferenceResponseSchema2(Schema):
     preferred_schools = fields.String()
     strategy = fields.String()
     application_preference = fields.String()
+    
+    # 新增字段
+    volunteer_gradient_strategy = fields.String()
+    custom_gradient_counts = fields.Dict()
+    application_batch = fields.String()
+    gradient_counts = fields.Dict()
+    
+    # 报考限制字段
+    accept_nonchangeable_major = fields.Boolean()
+    has_art_foundation = fields.Boolean()
+    accept_overseas_study = fields.Boolean()
+    accept_high_fee_increase = fields.Boolean()
+    accept_dual_city_arrangement = fields.Boolean()
 
 # 综合学生全部信息响应Schema
 class ComprehensiveStudentResponseSchema(Schema):

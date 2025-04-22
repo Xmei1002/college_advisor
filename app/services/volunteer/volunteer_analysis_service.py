@@ -6,7 +6,7 @@ from app.models.user import User
 from app.services.student.student_data_service import StudentDataService
 from sqlalchemy.exc import SQLAlchemyError
 import json
-from app.services.ai.moonshot import MoonshotAI
+from app.services.ai.llm_service import LLMService
 from datetime import datetime, timezone
 from app.models.student_volunteer_plan import VolunteerSpecialty
 
@@ -134,7 +134,7 @@ class AIVolunteerAnalysisService:
         :param temperature: 控制输出的随机性，默认为0.3
         :return: AI 的分析内容
         """
-        res = MoonshotAI.analyzing_category(
+        res = LLMService.analyzing_category(
             user_info=user_info,
             simplified_colleges_json=simplified_colleges_json,
             category=category,
@@ -441,7 +441,7 @@ class AIVolunteerAnalysisService:
                 volunteer_plan = json.dumps(volunteer_plan, ensure_ascii=False)
                 
             # 4. 调用AI分析
-            analysis_result = MoonshotAI.analyzing_full_plan(
+            analysis_result = LLMService.analyzing_full_plan(
                 user_info=user_info,
                 volunteer_plan=volunteer_plan
             )

@@ -4,7 +4,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from flask_smorest import Blueprint
 from app.utils.response import APIResponse
 from app.utils.decorators import api_error_handler
-from app.models.studentProfile import Student,AcademicRecord
+from app.models.studentProfile import Student, AcademicRecord
 from app.models.user import User
 from app.extensions import db
 from datetime import datetime, timezone
@@ -22,11 +22,10 @@ student_bp = Blueprint(
 
 from app.api.schemas.student import (
     StudentProfileSchema, AcademicRecordSchema,
-    StudentResponseSchema, AcademicRecordResponseSchema,CombinedStudentDataSchema,
+    StudentResponseSchema, AcademicRecordResponseSchema, CombinedStudentDataSchema,
     CombinedStudentResponseSchema,
     ComprehensiveStudentResponseSchema
 )
-
 
 @student_bp.route('/student-data', methods=['POST'])
 @student_bp.arguments(CombinedStudentDataSchema)
@@ -75,15 +74,23 @@ def create_student_data(data):
                 id_card_number=profile_data.get('id_card_number'),
                 household_type=profile_data.get('household_type'),
                 student_type=profile_data.get('student_type'),
+                # 新增字段
+                political_status=profile_data.get('political_status'),
+                birth_date=profile_data.get('birth_date'),
+                guardian1_relation=profile_data.get('guardian1_relation'),
                 guardian1_name=profile_data.get('guardian1_name'),
                 guardian1_phone=profile_data.get('guardian1_phone'),
+                guardian2_relation=profile_data.get('guardian2_relation'),
                 guardian2_name=profile_data.get('guardian2_name'),
                 guardian2_phone=profile_data.get('guardian2_phone'),
                 left_eye_vision=profile_data.get('left_eye_vision'),
                 right_eye_vision=profile_data.get('right_eye_vision'),
                 color_vision=profile_data.get('color_vision'),
+                # 新增嗅觉情况字段
+                smell_condition=profile_data.get('smell_condition'),
                 height=profile_data.get('height'),
                 weight=profile_data.get('weight'),
+                other_condition=profile_data.get('other_condition'),
                 foreign_language=profile_data.get('foreign_language'),
                 is_discredited=profile_data.get('is_discredited', False),
                 discredit_reason=profile_data.get('discredit_reason'),
@@ -113,6 +120,7 @@ def create_student_data(data):
                 gaokao_ranking=academic_data.get('gaokao_ranking'),
                 standard_score=academic_data.get('standard_score'),
                 bonus_type=academic_data.get('bonus_type'),
+                bonus_detail=academic_data.get('bonus_detail'),  # 新增加分情况字段
                 chinese_score=academic_data.get('chinese_score'),
                 math_score=academic_data.get('math_score'),
                 foreign_lang_score=academic_data.get('foreign_lang_score'),
@@ -199,15 +207,23 @@ def create_student_profile(data):
             id_card_number=data.get('id_card_number'),
             household_type=data.get('household_type'),
             student_type=data.get('student_type'),
+            # 新增字段
+            political_status=data.get('political_status'),
+            birth_date=data.get('birth_date'),
+            guardian1_relation=data.get('guardian1_relation'),
             guardian1_name=data.get('guardian1_name'),
             guardian1_phone=data.get('guardian1_phone'),
+            guardian2_relation=data.get('guardian2_relation'),
             guardian2_name=data.get('guardian2_name'),
             guardian2_phone=data.get('guardian2_phone'),
             left_eye_vision=data.get('left_eye_vision'),
             right_eye_vision=data.get('right_eye_vision'),
             color_vision=data.get('color_vision'),
+            # 新增嗅觉情况字段
+            smell_condition=data.get('smell_condition'),
             height=data.get('height'),
             weight=data.get('weight'),
+            other_condition=data.get('other_condition'),
             foreign_language=data.get('foreign_language'),
             is_discredited=data.get('is_discredited', False),
             discredit_reason=data.get('discredit_reason'),
@@ -223,7 +239,7 @@ def create_student_profile(data):
         planner_id = user.planner_id
         student_data = StudentDataService.extract_college_recommendation_data(student.id)
         user_data_hash = calculate_user_data_hash(student.to_dict())
-        generate_volunteer_plan_task.delay(student.id,planner_id,user_data_hash,is_first = True)
+        generate_volunteer_plan_task.delay(student.id, planner_id, user_data_hash, is_first=True)
     return APIResponse.success(
         data=student.to_dict(),
         message=message,
@@ -296,6 +312,7 @@ def create_academic_record(data):
             gaokao_ranking=data.get('gaokao_ranking'),
             standard_score=data.get('standard_score'),
             bonus_type=data.get('bonus_type'),
+            bonus_detail=data.get('bonus_detail'),  # 新增加分情况字段
             chinese_score=data.get('chinese_score'),
             math_score=data.get('math_score'),
             foreign_lang_score=data.get('foreign_lang_score'),
@@ -485,7 +502,7 @@ def get_student_comprehensive_info():
     """
     获取学生全部信息
     
-    获取当前登录用户的所有信息，包括基本信息、学业记录、职业志向和大学偏好
+    获取当前登录用户的所有信息，包括基本信息、学业记录和大学偏好(包含职业志向)
     """
     # 获取当前用户ID
     user_id = get_jwt_identity()
@@ -499,11 +516,7 @@ def get_student_comprehensive_info():
     # 获取学业记录
     academic_record = AcademicRecord.query.filter_by(student_id=student.id).first()
     
-    # 获取职业偏好
-    from app.models.careerPreference import CareerPreference
-    career_preference = CareerPreference.query.filter_by(student_id=student.id).first()
-    
-    # 获取大学偏好
+    # 获取大学偏好(已包含职业志向)
     from app.models.collegePreference import CollegePreference
     college_preference = CollegePreference.query.filter_by(student_id=student.id).first()
     
@@ -511,25 +524,7 @@ def get_student_comprehensive_info():
         data={
             'student': student.to_dict(),
             'academic_record': academic_record.to_dict() if academic_record else None,
-            'career_preference': career_preference.to_dict() if career_preference else None,
             'college_preference': college_preference.to_dict() if college_preference else None
         },
         message="获取学生全部信息成功"
     )
-
-
-# @student_bp.route('/analyzing_strategy', methods=['POST'])
-# @jwt_required()
-# @api_error_handler
-# def analyzing_strategy():
-#     """
-#     AI根据用户信息生成填报策略
-#     """
-#     planner_id = get_jwt_identity()
-#     planner = User.query.get_or_404(int(planner_id))
-
-#     if not planner.is_planner():
-#         return APIResponse.error("权限不足，仅限规划师操作", code=403)
-    
-
-    

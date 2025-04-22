@@ -345,35 +345,35 @@ class ScoreClassifier:
     def _classify_undergraduate_professional(score_diff):
         """专业模式-本科分类逻辑"""
         # 冲（0~-20）
-        if -20 <= score_diff <= 0:
+        if -20 < score_diff <= 0:
             category = "chasing"
-            if -5 <= score_diff <= 0:
+            if -5 < score_diff <= 0:
                 group = "冲-志愿1-4"
-            elif -10 <= score_diff < -5:
+            elif -10 < score_diff <= -5:
                 group = "冲-志愿5-8"
-            elif -15 <= score_diff < -10:
+            elif -15 < score_diff <= -10:
                 group = "冲-志愿9-12"
             else:
                 group = "冲-志愿13-16"
         # 稳（-20~-40）
-        elif -40 <= score_diff < -20:
+        elif -40 < score_diff <= -20:
             category = "stable"
-            if -25 <= score_diff < -20:
+            if -25 < score_diff <= -20:
                 group = "稳-志愿17-20"
-            elif -30 <= score_diff < -25:
+            elif -30 < score_diff <= -25:
                 group = "稳-志愿21-24"
-            elif -35 <= score_diff < -30:
+            elif -35 < score_diff <= -30:
                 group = "稳-志愿25-28"
             else:
                 group = "稳-志愿29-32"
         # 保（-40~-60）
-        elif -60 <= score_diff < -40:
+        elif -60 < score_diff <= -40:
             category = "safe"
-            if -45 <= score_diff < -40:
+            if -45 < score_diff <= -40:
                 group = "保-志愿33-36"
-            elif -50 <= score_diff < -45:
+            elif -50 < score_diff <= -45:
                 group = "保-志愿37-40"
-            elif -55 <= score_diff < -50:
+            elif -55 < score_diff <= -50:
                 group = "保-志愿41-44"
             else:
                 group = "保-志愿45-48"
@@ -386,35 +386,35 @@ class ScoreClassifier:
     def _classify_vocational_professional(score_diff):
         """专业模式-专科分类逻辑"""
         # 冲（-10~-30）
-        if -30 <= score_diff <= -10:
+        if -30 < score_diff <= -10:
             category = "chasing"
-            if -15 <= score_diff <= -10:
+            if -15 < score_diff <= -10:
                 group = "冲-志愿1-4"
-            elif -20 <= score_diff < -15:
+            elif -20 < score_diff <= -15:
                 group = "冲-志愿5-8"
-            elif -25 <= score_diff < -20:
+            elif -25 < score_diff <= -20:
                 group = "冲-志愿9-12"
             else:
                 group = "冲-志愿13-16"
         # 稳（-30~-70）
-        elif -70 <= score_diff < -30:
+        elif -70 < score_diff <= -30:
             category = "stable"
-            if -40 <= score_diff < -30:
+            if -40 < score_diff <= -30:
                 group = "稳-志愿17-20"
-            elif -50 <= score_diff < -40:
+            elif -50 < score_diff <= -40:
                 group = "稳-志愿21-24"
-            elif -60 <= score_diff < -50:
+            elif -60 < score_diff <= -50:
                 group = "稳-志愿25-28"
             else:
                 group = "稳-志愿29-32"
         # 保（-70~-110）
-        elif -110 <= score_diff < -70:
+        elif -110 < score_diff <= -70:
             category = "safe"
-            if -80 <= score_diff < -70:
+            if -80 < score_diff <= -70:
                 group = "保-志愿33-36"
-            elif -90 <= score_diff < -80:
+            elif -90 < score_diff <= -80:
                 group = "保-志愿37-40"
-            elif -100 <= score_diff < -90:
+            elif -100 < score_diff <= -90:
                 group = "保-志愿41-44"
             else:
                 group = "保-志愿45-48"
@@ -427,9 +427,9 @@ class ScoreClassifier:
     def _classify_undergraduate_free(score_diff):
         """自由模式-本科分类逻辑"""
         # 冲（180~0）
-        if 0 <= score_diff <= 180:
+        if 0 < score_diff <= 180:
             category = "chasing"
-            if 0 <= score_diff <= 40:
+            if 0 < score_diff <= 40:
                 group = "冲-志愿13-16"
             elif 40 < score_diff <= 80:
                 group = "冲-志愿9-12"
@@ -438,24 +438,24 @@ class ScoreClassifier:
             else:
                 group = "冲-志愿1-4"
         # 稳（0~-40）
-        elif -40 <= score_diff < 0:
+        elif -40 < score_diff <= 0:
             category = "stable"
-            if -10 <= score_diff < 0:
+            if -10 < score_diff <= 0:
                 group = "稳-志愿17-20"
-            elif -20 <= score_diff < -10:
+            elif -20 < score_diff <= -10:
                 group = "稳-志愿21-24"
-            elif -30 <= score_diff < -20:
+            elif -30 < score_diff <= -20:
                 group = "稳-志愿25-28"
             else:
                 group = "稳-志愿29-32"
         # 保（-40~-80）
-        elif -80 <= score_diff < -40:
+        elif -80 < score_diff <= -40:
             category = "safe"
-            if -50 <= score_diff < -40:
+            if -50 < score_diff <= -40:
                 group = "保-志愿33-36"
-            elif -60 <= score_diff < -50:
+            elif -60 < score_diff <= -50:
                 group = "保-志愿37-40"
-            elif -70 <= score_diff < -60:
+            elif -70 < score_diff <= -60:
                 group = "保-志愿41-44"
             else:
                 group = "保-志愿45-48"
@@ -468,9 +468,9 @@ class ScoreClassifier:
     def _classify_vocational_free(score_diff):
         """自由模式-专科分类逻辑"""
         # 冲（240~20）
-        if 20 <= score_diff <= 240:
+        if 20 < score_diff <= 240:
             category = "chasing"
-            if 20 <= score_diff <= 60:
+            if 20 < score_diff <= 60:
                 group = "冲-志愿13-16"
             elif 60 < score_diff <= 100:
                 group = "冲-志愿9-12"
@@ -479,24 +479,24 @@ class ScoreClassifier:
             else:
                 group = "冲-志愿1-4"
         # 稳（20~-60）
-        elif -60 <= score_diff < 20:
+        elif -60 < score_diff <= 20:
             category = "stable"
-            if 0 <= score_diff < 20:
+            if 0 < score_diff <= 20:
                 group = "稳-志愿17-20"
-            elif -20 <= score_diff < 0:
+            elif -20 < score_diff <= 0:
                 group = "稳-志愿21-24"
-            elif -40 <= score_diff < -20:
+            elif -40 < score_diff <= -20:
                 group = "稳-志愿25-28"
             else:
                 group = "稳-志愿29-32"
         # 保（-60~-120）
-        elif -120 <= score_diff < -60:
+        elif -120 < score_diff <= -60:
             category = "safe"
-            if -75 <= score_diff < -60:
+            if -75 < score_diff <= -60:
                 group = "保-志愿33-36"
-            elif -90 <= score_diff < -75:
+            elif -90 < score_diff <= -75:
                 group = "保-志愿37-40"
-            elif -105 <= score_diff < -90:
+            elif -105 < score_diff <= -90:
                 group = "保-志愿41-44"
             else:
                 group = "保-志愿45-48"
