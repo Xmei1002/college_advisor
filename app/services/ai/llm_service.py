@@ -510,7 +510,7 @@ class LLMService:
                 tools_messages.insert(0, {"role": "system", "content": system})
                 # 发送第二次请求获取最终响应
                 kwargs['stream'] = True
-                finally_res = cls._call_api(tools_messages=tools_messages, provider_name='zhipu',**kwargs)
+                finally_res = cls._call_api(tools_messages=tools_messages, provider_name='moonshot',**kwargs)
                 
                 # 流式返回最终响应
                 for chunk in finally_res:

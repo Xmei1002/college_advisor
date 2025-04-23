@@ -339,7 +339,8 @@ def get_colleges_by_major_names(arguments):
             query = query.filter(db.or_(*tuition_conditions))
     
     subquery = query.with_entities(ZwhXgkFenshuxian2025.cid).distinct().limit(20).subquery()
-    query = query.filter(ZwhXgkFenshuxian2025.cid.in_(subquery))
+    subquery_select = subquery.select()  # 显式转换为select()
+    query = query.filter(ZwhXgkFenshuxian2025.cid.in_(subquery_select))
     
     # 执行查询
     results = query.all()
