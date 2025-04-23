@@ -2,6 +2,16 @@
 from marshmallow import Schema, fields, validate
 from app.api.schemas import PaginationSchema
 
+class ConversationType:
+    TYPE_0 = '普通对话'  
+    TYPE_1 = '就业倾向' 
+    TYPE_2 = '地域意向'
+    TYPE_3 = '专业意向'
+    TYPE_4 = '意向院校'
+    TYPE_5 = '院校专业策略'
+    TYPE_6 = '优势学科'
+    TYPE_7 = '劣势学科'
+
 # 查询参数Schema
 class ConversationQuerySchema(Schema):
     """会话列表查询参数"""
@@ -26,7 +36,16 @@ class StreamChatRequestSchema(Schema):
     conversation_type = fields.String(
         required=True, 
         description="会话类型", 
-        validate=validate.OneOf(["changeinfo", "volunteer", "explaininfo"])
+        validate=validate.OneOf([
+            ConversationType.TYPE_0, 
+            ConversationType.TYPE_1,
+            ConversationType.TYPE_2,
+            ConversationType.TYPE_3,
+            ConversationType.TYPE_4,
+            ConversationType.TYPE_5,
+            ConversationType.TYPE_6,
+            ConversationType.TYPE_7
+        ])
     )
     message = fields.String(required=True, description="消息内容")
     conversation_id = fields.Integer(allow_none=True, description="会话ID，新会话传0或不传")

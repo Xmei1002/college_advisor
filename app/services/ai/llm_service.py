@@ -6,16 +6,35 @@ from app.models.prompt_template import PromptTemplate
 from app.models.llm_configuration import LLMConfiguration
 from app.services.ai.prompt import (
     ANALYZING_STRATEGY_PROMPT,
-    ANALYZING_PLAN_PROMPT,
+    COMMON_PROMPT,
     CHANGE_STU_CP_PROMPT,
     ANALYZING_SNAPSHOT_PROMPT,
     ANALYZING_SPECIALTY_PROMPT,
     FILTER_COLLEGE_PROMPT,
     GENERATE_CONVERSATION_TITLE_PROMPT,
     ANALYZING_EXPLAIN_INFO_PROMPT,
+    CAREER_ANALYZING_PROMPT,
+    CITY_ANALYZING_PROMPT,
+    MAJOR_ANALYZING_PROMPT,
+    COLLEGE_ANALYZING_PROMPT,
+    S_SUBJECT_ANALYZING_PROMPT,
+    W_SUBJECT_ANALYZING_PROMPT,
+    STRATEGY_ANALYZING_PROMPT,
 )
 import json
-from app.core.recommendation.ai_function_call import get_college_detail_by_name
+from app.core.recommendation.ai_function_call import get_college_detail_by_name,get_colleges_by_major_names,get_colleges_by_location
+from app.models.conversations import Conversation
+from app.services.student.student_data_service import StudentDataService
+CONVERSATION_PROMPTS = {
+    Conversation.TYPE_0: COMMON_PROMPT,
+    Conversation.TYPE_1: CAREER_ANALYZING_PROMPT,
+    Conversation.TYPE_2: CITY_ANALYZING_PROMPT, 
+    Conversation.TYPE_3: MAJOR_ANALYZING_PROMPT, 
+    Conversation.TYPE_4: COLLEGE_ANALYZING_PROMPT, 
+    Conversation.TYPE_5: STRATEGY_ANALYZING_PROMPT, 
+    Conversation.TYPE_6: S_SUBJECT_ANALYZING_PROMPT, 
+    Conversation.TYPE_7: W_SUBJECT_ANALYZING_PROMPT, 
+}
 
 class LLMService:
     """统一的大语言模型服务类"""
@@ -26,16 +45,20 @@ class LLMService:
     # 当前活跃的提供者名称
     _active_provider = None
     _last_check_time = None
+
     tool_map = {
         "get_college_detail_by_name": get_college_detail_by_name,
+        "get_colleges_by_major_names": get_colleges_by_major_names,
+        "get_colleges_by_location": get_colleges_by_location
     }
+    
     tools = [
         {
             "type": "function", 
             "function": { 
                 "name": "get_college_detail_by_name",  
                 "description": """ 
-                    获取指定高校的详细信息。
+                    获取指定高校的详细信息,返回结果包含院校基本信息，历年分数，专业等等
 			""", 
                 "parameters": {  # 使用 parameters 字段来定义函数接收的参数
                     "type": "object",  # 固定使用 type: object 来使 Kimi 大模型生成一个 JSON Object 参数
@@ -52,6 +75,60 @@ class LLMService:
                     },
                 },
             },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "get_colleges_by_major_names",
+                "description": """
+                    根据专业名称，获取推荐的高校列表
+                """,
+                "parameters": {
+                    "type": "object",
+                    "required": ["major_names","student_id"],
+                    "properties": {
+                        "major_names": {
+                            "type": "array",
+                            "description": """
+                                专业列表
+                            """            
+                        },
+                        "student_id": {
+                            "type": "string",
+                            "description": """
+                                学生ID
+                            """
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "get_colleges_by_location",
+                "description": """
+                    根据城市名称，获取推荐的高校列表
+                """,
+                "parameters": {
+                    "type": "object",
+                    "required": ["location_names","student_id"],
+                    "properties": {
+                        "location_names": {
+                            "type": "array",
+                            "description": """
+                                地区名列表，如北京,上海
+                            """
+                        },
+                        "student_id": {
+                            "type": "string",
+                            "description": """
+                                学生ID
+                            """
+                        }
+                    }
+                }
+            }
         }
     ]
     # 支持的提供者配置
@@ -299,9 +376,10 @@ class LLMService:
         return cls._call_api(user_input=user_input, system=system, **kwargs)
 
     @classmethod
-    def analyzing_plan(cls, user_input, history_msg, **kwargs):
+    def common_chat(cls, user_input, history_msg, system, **kwargs):
         """分析志愿方案"""
-        system = ANALYZING_PLAN_PROMPT
+        system = system or COMMON_PROMPT
+
         kwargs["stream"] = True
         stream_response = cls._call_api(
             user_input=user_input, system=system, history_msg=history_msg, **kwargs
@@ -336,11 +414,18 @@ class LLMService:
         return cls._call_api(user_input=user_input, **kwargs)
 
     @classmethod
-    def kimi_tools(cls, user_input, history_msg, **kwargs):
+    def kimi_tools(cls, user_input, history_msg, student_id, conversation_type, **kwargs):
         """kimi工具"""
+        prompt = CONVERSATION_PROMPTS.get(conversation_type, COMMON_PROMPT)
+        if conversation_type in {Conversation.TYPE_5, Conversation.TYPE_6, Conversation.TYPE_7}:
+            user_input = user_input + StudentDataService.generate_student_profile_text(student_id)
+            yield from cls.common_chat(user_input, history_msg, system=prompt, **kwargs)
+            return
+
         tools = cls.tools
+        system = prompt + f'# 学生ID为：{student_id}'
         kwargs["stream"] = True
-        res = cls._call_api(user_input=user_input, tools=tools, history_msg=history_msg, provider_name='moonshot', **kwargs)
+        res = cls._call_api(user_input=user_input, system=system, tools=tools, history_msg=history_msg, provider_name='moonshot', **kwargs)
         
         # 用于跟踪是否已触发工具调用
         has_tool_call = False
@@ -350,7 +435,6 @@ class LLMService:
         # 遍历流式响应
         for chunk in res:
             delta = chunk.choices[0].delta
-            
             # 检查是否有工具调用
             if delta.tool_calls:
                 # 标记已触发工具调用
@@ -385,7 +469,7 @@ class LLMService:
                 tool_call_name = tool_call_info["name"]
                 tool_function = cls.tool_map[tool_call_name]
                 tool_result = tool_function(tool_call_arguments)
-                # current_app.logger.info(f"执行工具 {tool_call_name}，参数为 {tool_call_arguments}，结果为 {tool_result}")
+                current_app.logger.info(f"执行工具 {tool_call_name}，参数为 {tool_call_arguments}，结果为 {tool_result}")
                 
                 # 构建工具消息
                 tools_messages = [
@@ -411,9 +495,10 @@ class LLMService:
                 ]
                 history_msg.append({"role": "user", "content": user_input})
                 tools_messages = history_msg + tools_messages
+                tools_messages.insert(0, {"role": "system", "content": system})
                 # 发送第二次请求获取最终响应
                 kwargs['stream'] = True
-                finally_res = cls._call_api(tools_messages=tools_messages, **kwargs)
+                finally_res = cls._call_api(tools_messages=tools_messages, provider_name='zhipu',**kwargs)
                 
                 # 流式返回最终响应
                 for chunk in finally_res:
@@ -425,3 +510,4 @@ class LLMService:
                 error_msg = f"工具调用参数解析失败: {str(e)}"
                 current_app.logger.error(error_msg)
                 yield error_msg
+

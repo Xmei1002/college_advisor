@@ -468,12 +468,6 @@ class StudentDataService:
         else:
             text_parts.append("暂无志愿填报意向信息")
         
-        # 附加信息
-        text_parts.append("")
-        text_parts.append("=" * 50)
-        text_parts.append(f"档案创建时间：{student.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
-        text_parts.append(f"最后更新时间：{student.updated_at.strftime('%Y-%m-%d %H:%M:%S')}")
-        
         # 合并所有文本部分
         return "\n".join(text_parts)
     

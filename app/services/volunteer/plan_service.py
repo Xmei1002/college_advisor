@@ -9,6 +9,9 @@ from app.services.ai.ollama import OllamaAPI
 import json
 from app.services.student.student_data_service import StudentDataService
 from app.utils.helpers import convert_utc_to_beijing
+from app.core.recommendation.repository import CollegeRepository
+from app.models.zwh_xgk_fenzu_2025 import ZwhXgkFenzu2025
+
 class VolunteerPlanService:
     """志愿方案服务类，处理学生志愿方案相关业务逻辑"""
     
@@ -24,60 +27,151 @@ class VolunteerPlanService:
         :param volunteer_index: 按志愿序号过滤(1-48)
         :return: 志愿方案详情
         """
+        # 首先获取基本数据和分析信息
         plan = StudentVolunteerPlan.query.get_or_404(plan_id)
         result = plan.to_dict()
         
         # 获取志愿类别分析信息
         analyses_query = VolunteerCategoryAnalysis.query.filter_by(plan_id=plan_id)
-        
-        # 如果指定了类别ID，也按类别ID过滤分析
         if category_id is not None:
             analyses_query = analyses_query.filter_by(category_id=category_id)
-            
-        # 获取分析结果并添加到返回数据中
+        
         category_analyses = analyses_query.all()
         result['category_analyses'] = [analysis.to_dict() for analysis in category_analyses]
         
-        if include_details:
-            # 构建基础查询
-            colleges_query = VolunteerCollege.query.filter_by(plan_id=plan_id).order_by(VolunteerCollege.volunteer_index)
+        if not include_details:
+            return result
+        
+        # 构建基础查询 - 使用连接查询一次性获取所有需要的数据
+        colleges_query = db.session.query(
+            VolunteerCollege, 
+            ZwhXgkFenzu2025.newsuid, 
+            ZwhXgkFenzu2025.newbid
+        ).outerjoin(
+            ZwhXgkFenzu2025, 
+            VolunteerCollege.college_group_id == ZwhXgkFenzu2025.cgid
+        ).filter(
+            VolunteerCollege.plan_id == plan_id
+        ).order_by(
+            VolunteerCollege.volunteer_index
+        )
 
-            # 应用过滤条件
-            if category_id is not None:
-                colleges_query = colleges_query.filter_by(category_id=category_id)
-            if group_id is not None:
-                colleges_query = colleges_query.filter_by(group_id=group_id)
-            if volunteer_index is not None:
-                colleges_query = colleges_query.filter_by(volunteer_index=volunteer_index)
+        # 应用过滤条件
+        if category_id is not None:
+            colleges_query = colleges_query.filter(VolunteerCollege.category_id == category_id)
+        if group_id is not None:
+            colleges_query = colleges_query.filter(VolunteerCollege.group_id == group_id)
+        if volunteer_index is not None:
+            colleges_query = colleges_query.filter(VolunteerCollege.volunteer_index == volunteer_index)
+        
+        # 执行查询获取结果
+        colleges_with_fenzu = colleges_query.all()
+        
+        
+        # 准备数据结构
+        colleges = [item[0] for item in colleges_with_fenzu]
+        college_ids = [college.id for college in colleges]
+        
+        # 分组信息
+        college_group_ids = []
+        college_group_map = {}  # 映射院校ID到专业组ID
+        college_group_info = {}  # 科别和批次信息
+        
+        for college, newsuid, newbid in colleges_with_fenzu:
+            if college.college_group_id:
+                cgid = college.college_group_id
+                college_group_ids.append(cgid)
+                college_group_map[college.id] = cgid
                 
-            # 执行查询获取结果
-            colleges = colleges_query.all()
-            college_ids = [college.id for college in colleges]
-
-            # 批量获取所有专业，避免N+1查询问题
-            all_specialties = {}
-            if college_ids:
-                specialties = VolunteerSpecialty.query.filter(
-                    VolunteerSpecialty.volunteer_college_id.in_(college_ids)
-                ).all()
+                # 如果有科别和批次信息，则保存
+                if newsuid is not None and newbid is not None:
+                    college_group_info[cgid] = {
+                        'subject_type': newsuid,
+                        'education_level': newbid
+                    }
+        
+        # 填充可能缺失的科别和批次信息
+        missing_cgids = [cgid for cgid in college_group_ids if cgid not in college_group_info]
+        if missing_cgids:
+            fenzu_records = ZwhXgkFenzu2025.query.filter(
+                ZwhXgkFenzu2025.cgid.in_(missing_cgids)
+            ).all()
+            
+            for record in fenzu_records:
+                college_group_info[record.cgid] = {
+                    'subject_type': record.newsuid,
+                    'education_level': record.newbid
+                }
+        
+        # 批量获取历史数据 - 按科别和批次分组查询
+        group_by_type = {}
+        for cgid, info in college_group_info.items():
+            key = (info.get('subject_type'), info.get('education_level'))
+            if key not in group_by_type:
+                group_by_type[key] = []
+            group_by_type[key].append(cgid)
+        
+        college_group_history = {}
+        for (subject_type, education_level), cgids in group_by_type.items():
+            if subject_type and education_level:  # 确保有有效的科别和批次
+                history = CollegeRepository.get_college_group_history_by_ids(
+                    cgids, subject_type, education_level
+                )
+                college_group_history.update(history)
+        
+        
+        # 批量获取所有专业 - 使用一次查询
+        all_specialties = {}
+        if college_ids:
+            specialties = VolunteerSpecialty.query.filter(
+                VolunteerSpecialty.volunteer_college_id.in_(college_ids)
+            ).all()
+            
+            # 按院校ID分组专业
+            for specialty in specialties:
+                if specialty.volunteer_college_id not in all_specialties:
+                    all_specialties[specialty.volunteer_college_id] = []
+                all_specialties[specialty.volunteer_college_id].append(specialty.to_dict())
+        
+        
+        # 构建完整的志愿方案详情
+        volunteer_colleges = []
+        for college in colleges:
+            college_dict = college.to_dict()
+            college_dict['specialties'] = all_specialties.get(college.id, [])
+            
+            # 添加历史数据
+            if college.id in college_group_map:
+                cgid = college_group_map[college.id]
+                history_data_obj = college_group_history.get(cgid, {})
                 
-                # 按院校ID分组专业
-                for specialty in specialties:
-                    if specialty.volunteer_college_id not in all_specialties:
-                        all_specialties[specialty.volunteer_college_id] = []
-                    all_specialties[specialty.volunteer_college_id].append(specialty.to_dict())
+                # 转换为数组格式
+                history_data_array = []
+                for year, data in history_data_obj.items():
+                    if data:  # 确保数据存在
+                        year_data = {
+                            "year": year,
+                            **data  # 展开原始数据
+                        }
+                        history_data_array.append(year_data)
+                
+                # 按年份排序（从新到旧）
+                history_data_array.sort(key=lambda x: x["year"], reverse=True)
+                
+                # 计算扩建人数（2025年计划人数 - 2024年计划人数）
+                plan_2025 = college.plan_number or 0
+                plan_2024 = history_data_obj.get('2024', {}).get('plan_number') or 0
+                plan_increase = plan_2025 - plan_2024
+                
+                college_dict['history'] = history_data_array
+                college_dict['plan_increase'] = plan_increase
             
-            # 构建完整的志愿方案详情
-            volunteer_colleges = []
-            for college in colleges:
-                college_dict = college.to_dict()
-                college_dict['specialties'] = all_specialties.get(college.id, [])
-                volunteer_colleges.append(college_dict)
-            
-            result['colleges'] = volunteer_colleges
+            volunteer_colleges.append(college_dict)
+        
+        result['colleges'] = volunteer_colleges
         
         return result
-        
+
     @staticmethod
     def update_volunteer_plan(plan_id, update_data):
         """

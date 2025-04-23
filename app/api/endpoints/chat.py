@@ -134,10 +134,6 @@ def stream_chat(args):
     message = args['message']
     conversation_id = args.get('conversation_id', False)  
     plan_id = args.get('plan_id')  # 可选参数
-
-    # 验证会话类型
-    if conversation_type not in [Conversation.TYPE_CHANGEINFO, Conversation.TYPE_VOLUNTEER, Conversation.TYPE_EXPLAININFO]:
-        return APIResponse.error(f"无效的会话类型: {conversation_type}", code=400)
     
     # 权限验证
     current_user_id = get_jwt_identity()

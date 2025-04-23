@@ -344,75 +344,58 @@ class CollegeRepository:
     @staticmethod
     def get_college_group_history_by_ids(group_ids, subject_type, education_level):
         """
-        批量获取专业组的历年投档线数据
+        批量获取专业组的历年投档线数据（优化版）
         
         :param group_ids: 专业组ID列表
         :param subject_type: 科别
         :param education_level: 教育层次
         :return: 按专业组ID组织的历年数据字典
         """
+        
         if not group_ids:
             return {}
         
         # 定义查询的年份
         years = ["2024", "2023", "2022"]
+        years_int = [2024, 2023, 2022]
         
         # 创建返回结果字典
         result = {cgid: {} for cgid in group_ids}
         
-        # 查询每个专业组的选科要求，获取各专业组的批次和科别
-        group_info = db.session.query(
+        # 1. 批量查询所有专业组的批次和科别信息
+        group_info_query = db.session.query(
             ZwhXgkFenzu2025.cgid,
             ZwhXgkFenzu2025.newbid,
             ZwhXgkFenzu2025.newsuid
         ).filter(
             ZwhXgkFenzu2025.cgid.in_(group_ids)
-        ).all()
+        )
         
         # 构建批次和科别映射
-        group_bid_suid = {g.cgid: (g.newbid, g.newsuid) for g in group_info}
+        group_bid_suid = {g.cgid: (g.newbid, g.newsuid) for g in group_info_query.all()}
         
-
-        province_lines = {}
+        # 2. 批量查询所有年份的省定线
+        # 收集所有需要查询的批次和科别组合
+        unique_bid_suid = set((bid, suid) for bid, suid in group_bid_suid.values())
         
-        for year in years:
-            # 查询省定线
-            for cgid in group_ids:
-                if cgid in group_bid_suid:
-                    newbid, newsuid = group_bid_suid[cgid]
-                    
-                    # 查询省定线
-                    province_line_info = db.session.query(
-                        ZwhXgkPicixian.dscore
-                    ).filter(
-                        ZwhXgkPicixian.newbid == newbid,
-                        ZwhXgkPicixian.suid == newsuid,
-                        ZwhXgkPicixian.dyear == int(year)
-                    ).first()
-                    
-                    # 保存省定线
-                    province_score = int(province_line_info.dscore) if province_line_info and province_line_info.dscore is not None else None
-                    
-                    if cgid not in province_lines:
-                        province_lines[cgid] = {}
-                    
-                    province_lines[cgid][year] = province_score
-                    
-                    # 查询批次线
-                    line_info = db.session.query(
-                        ZwhXgkPicixian.dscore
-                    ).filter(
-                        ZwhXgkPicixian.newbid == newbid,
-                        ZwhXgkPicixian.suid == newsuid,
-                        ZwhXgkPicixian.dyear == int(year)
-                    ).first()
-                    
-                    # 保存批次线
-                    batch_score = int(line_info.dscore) if line_info and line_info.dscore is not None else None
-                    
-
+        # 一次性查询所有年份的所有批次和科别组合的省定线
+        province_lines_query = db.session.query(
+            ZwhXgkPicixian.newbid,
+            ZwhXgkPicixian.suid,
+            ZwhXgkPicixian.dyear,
+            ZwhXgkPicixian.dscore
+        ).filter(
+            db.tuple_(ZwhXgkPicixian.newbid, ZwhXgkPicixian.suid).in_(unique_bid_suid),
+            ZwhXgkPicixian.dyear.in_(years_int)
+        )
         
-        # 为每个年份和每个专业组查询投档线记录
+        # 构建省定线映射：(批次, 科别, 年份) -> 分数
+        province_lines_map = {
+            (line.newbid, line.suid, str(line.dyear)): int(line.dscore) if line.dscore is not None else None
+            for line in province_lines_query.all()
+        }
+        
+        # 3. 批量查询各年份的投档线记录
         for year in years:
             # 确定对应年份的表
             if year == "2024":
@@ -421,45 +404,47 @@ class CollegeRepository:
                 table = ZwhXgkFenshuxian2023
             elif year == "2022":
                 table = ZwhXgkFenshuxian2022
-            elif year == "2021":
-                table = ZwhXgkFenshuxian2021
             else:
                 continue
             
-            # 查询投档线记录
-            records = db.session.query(
+            # 批量查询投档线记录
+            records_query = db.session.query(
                 table.cgid,
-                table.csbscore,  # 录取分数
-                table.csbplannum,  # 计划人数
-                table.weici  # 位次
+                table.csbscore,
+                table.csbplannum,
+                table.weici
             ).filter(
                 table.cgid.in_(group_ids),
                 table.spid == 32767,  # 只查询投档线记录
                 table.suid == subject_type,
                 table.newbid == education_level
-            ).all()
+            )
             
-            # 组织数据
-            for record in records:
+            # 一次性获取所有记录并处理
+            for record in records_query.all():
                 cgid = record.cgid
-                provincial_line = province_lines.get(cgid, {}).get(year)
+                if cgid not in group_bid_suid:
+                    continue
+                    
+                bid, suid = group_bid_suid[cgid]
+                provincial_line = province_lines_map.get((bid, suid, year))
                 
                 # 计算线差（相对于省定线）
                 province_score_diff = None
                 if provincial_line is not None and record.csbscore is not None:
                     province_score_diff = record.csbscore - provincial_line
                 
-                
+                # 保存数据
                 result[cgid][year] = {
                     'admission_score': int(record.csbscore) if record.csbscore is not None else None,
                     'plan_number': record.csbplannum,
-                    'provincial_line': provincial_line,  # 省定线
-                    'province_score_diff': province_score_diff,  # 相对于省定线的线差
+                    'provincial_line': provincial_line,
+                    'province_score_diff': province_score_diff,
                     'rank': record.weici
                 }
-        
+            
         return result
-    
+
     @staticmethod
     def get_specialties_by_group_ids(cgids, subject_type, education_level, student_subjects=None):
         """

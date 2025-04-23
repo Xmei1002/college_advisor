@@ -7,15 +7,21 @@ class Conversation(Base):
     __tablename__ = 'conversations'
     
     # 会话类型常量
-    TYPE_CHANGEINFO = 'changeinfo'  # 信息修改
-    TYPE_VOLUNTEER = 'volunteer'    # 志愿填报咨询
-    TYPE_EXPLAININFO = 'explaininfo'
+    TYPE_0 = '普通对话'  
+    TYPE_1 = '就业倾向' 
+    TYPE_2 = '地域意向'
+    TYPE_3 = '专业意向'
+    TYPE_4 = '意向院校'
+    TYPE_5 = '院校专业策略'
+    TYPE_6 = '优势学科'
+    TYPE_7 = '劣势学科'
     
+
     # 基础字段继承自Base模型(id, created_at, updated_at)
     student_id = db.Column(db.Integer, nullable=False, comment='学生ID')
     planner_id = db.Column(db.Integer, nullable=False, comment='规划师ID')
     title = db.Column(db.String(100), nullable=False, comment='会话标题')
-    conversation_type = db.Column(db.String(20), default=TYPE_VOLUNTEER, comment='会话类型')
+    conversation_type = db.Column(db.String(20), default=TYPE_0, comment='会话类型')
     last_message_time = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now, comment='最后消息时间')
     is_active = db.Column(db.Boolean, default=True, comment='是否活跃')
     is_archived = db.Column(db.Boolean, default=False, comment='是否归档')

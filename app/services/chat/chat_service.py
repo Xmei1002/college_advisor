@@ -316,21 +316,21 @@ class ChatService:
             yield json.dumps({"type": "metadata", "data": metadata})
             
             # 根据会话类型和是否有plan决定调用方式
-            if conversation_type == Conversation.TYPE_VOLUNTEER:
-                # 使用方案分析
-                ai_stream = LLMService.kimi_tools(message_content, formatted_history)
-                
-                # 处理AI流式响应
-                full_content = ""
-                for chunk in ai_stream:
-                    if chunk:
-                        full_content += chunk
-                        yield json.dumps({"type": "chunk", "content": chunk})
-                
-                # 更新AI消息内容
-                ai_message.content = full_content
+            if conversation_type == Conversation.TYPE_0:
+                ai_stream = LLMService.common_chat(message_content, formatted_history)
             else:
-                raise ValueError("未知的会话类型")
+                # 使用工具调用
+                ai_stream = LLMService.kimi_tools(message_content, formatted_history, student_id, conversation_type)
+                
+            # 处理AI流式响应
+            full_content = ""
+            for chunk in ai_stream:
+                if chunk:
+                    full_content += chunk
+                    yield json.dumps({"type": "chunk", "content": chunk})
+            
+            # 更新AI消息内容
+            ai_message.content = full_content
             # elif conversation_type == Conversation.TYPE_EXPLAININFO:
             #     # 使用信息解析
             #     ai_stream = LLMService.analyzing_explain_info(message_content, formatted_history, plan_id)

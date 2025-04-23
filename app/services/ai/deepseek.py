@@ -8,7 +8,7 @@ from .prompt import (
     ANALYZING_STRATEGY_PROMPT,
     ANALYZING_SNAPSHOT_PROMPT,
     CHANGE_STU_CP_PROMPT,
-    ANALYZING_PLAN_PROMPT,
+    COMMON_PROMPT,
     GENERATE_CONVERSATION_TITLE_PROMPT,
     ANALYZING_EXPLAIN_INFO_PROMPT,
 )
@@ -180,7 +180,7 @@ class DeepSeekAI:
 
     @classmethod
     def analyzing_plan(cls, user_input, history_msg, plan):
-        system = ANALYZING_PLAN_PROMPT
+        system = COMMON_PROMPT
         stream_response = cls._call_api(
             user_input=user_input,
             system=system,

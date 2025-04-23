@@ -10,7 +10,7 @@ from .prompt import (
     ANALYZING_STRATEGY_PROMPT,
     ANALYZING_SNAPSHOT_PROMPT,
     CHANGE_STU_CP_PROMPT,
-    ANALYZING_PLAN_PROMPT,
+    COMMON_PROMPT,
     GENERATE_CONVERSATION_TITLE_PROMPT,
     ANALYZING_EXPLAIN_INFO_PROMPT,
 )
@@ -257,7 +257,7 @@ class MoonshotAI:
 
     @classmethod
     def analyzing_plan(cls, user_input, history_msg, plan, temperature=0.3):
-        system = ANALYZING_PLAN_PROMPT
+        system = COMMON_PROMPT
         cache_id = "cache-ezycc5doc6di11ghppf1"
         cache_status = cls.get_cache_info(cache_id)
         # 获取缓存信息
