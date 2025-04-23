@@ -41,9 +41,11 @@ def send_verification(data):
     # 生成并发送验证码
     code = VerificationService.generate_code()
     VerificationService.save_code(phone, code)
-    VerificationService.send_sms(phone, code)
-    
-    return APIResponse.success(message="验证码发送成功")
+    res = VerificationService.send_sms(phone, code)
+    if res:
+        return APIResponse.success(message="验证码发送成功")
+    else:
+        return APIResponse.error("验证码发送失败", code=500)
 
 @auth_bp.route('/verify-code', methods=['POST'])
 @auth_bp.arguments(VerifyCodeSchema)

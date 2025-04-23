@@ -3,6 +3,7 @@ import random
 import redis
 from flask import current_app
 from datetime import timedelta
+from app.services.sms.aliyun_sms import AliyunSmsService
 
 class VerificationService:
     """验证码服务"""
@@ -26,8 +27,7 @@ class VerificationService:
     @staticmethod
     def verify_code(phone, code):
         """验证手机号码与验证码是否匹配"""
-        if code == '123456':  # 模拟验证码
-            return True
+
         redis_client = redis.Redis.from_url(current_app.config['CELERY_BROKER_URL'])
         key = f"{VerificationService.CODE_PREFIX}{phone}"
         saved_code = redis_client.get(key)
@@ -44,8 +44,11 @@ class VerificationService:
     
     @staticmethod
     def send_sms(phone, code):
-        """发送短信验证码（模拟）"""
-        # 实际项目中这里会调用短信服务API
-        current_app.logger.info(f"向 {phone} 发送验证码: {code}")
-        # 调用短信服务API的代码
-        return True
+        """发送短信验证码"""
+        # 调用阿里云短信服务发送验证码
+        success, error_msg = AliyunSmsService.send_verification_code(phone, code)
+        
+        if not success:
+            current_app.logger.error(f"发送验证码失败: {error_msg}")
+            return False
+        return success
