@@ -9,7 +9,14 @@ class PromptTemplate(Base):
     TYPE_ANALYZING_FULL_PLAN = 'analyzing_full_plan'  # 整体志愿方案解读
     TYPE_ANALYZING_CATEGORY = 'analyzing_category'    # 分层志愿解读
     TYPE_ANALYZING_COLLEGE = 'analyzing_college'      # 院校分析
-
+    TYPE_CAREER_ANALYZING_PROMPT = 'career_analyzing_prompt'    # 就业倾向解析提示词
+    TYPE_CITY_ANALYZING_PROMPT = 'city_analyzing_prompt'        # 地域意向解析提示词
+    TYPE_MAJOR_ANALYZING_PROMPT = 'major_analyzing_prompt'      # 专业意向解析提示词
+    TYPE_COLLEGE_ANALYZING_PROMPT = 'college_analyzing_prompt'  # 意向院校解析提示词
+    TYPE_STRATEGY_ANALYZING_PROMPT = 'strategy_analyzing_prompt'  # 院校专业策略解析提示词
+    TYPE_S_SUBJECT_ANALYZING_PROMPT = 's_subject_analyzing_prompt'  # 优势学科解析提示词
+    TYPE_W_SUBJECT_ANALYZING_PROMPT = 'w_subject_analyzing_prompt'  # 劣势学科解析提示词
+    
     # 字段定义
     name = db.Column(db.String(100), nullable=False, comment='提示词名称')
     type = db.Column(db.String(50), nullable=False, comment='提示词类型')

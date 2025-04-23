@@ -25,15 +25,15 @@ import json
 from app.core.recommendation.ai_function_call import get_college_detail_by_name,get_colleges_by_major_names,get_colleges_by_location
 from app.models.conversations import Conversation
 from app.services.student.student_data_service import StudentDataService
+
 CONVERSATION_PROMPTS = {
-    Conversation.TYPE_0: COMMON_PROMPT,
-    Conversation.TYPE_1: CAREER_ANALYZING_PROMPT,
-    Conversation.TYPE_2: CITY_ANALYZING_PROMPT, 
-    Conversation.TYPE_3: MAJOR_ANALYZING_PROMPT, 
-    Conversation.TYPE_4: COLLEGE_ANALYZING_PROMPT, 
-    Conversation.TYPE_5: STRATEGY_ANALYZING_PROMPT, 
-    Conversation.TYPE_6: S_SUBJECT_ANALYZING_PROMPT, 
-    Conversation.TYPE_7: W_SUBJECT_ANALYZING_PROMPT, 
+    Conversation.TYPE_1: PromptTemplate.TYPE_CAREER_ANALYZING_PROMPT,  # 就业倾向解析
+    Conversation.TYPE_2: PromptTemplate.TYPE_CITY_ANALYZING_PROMPT,   # 地域意向解析
+    Conversation.TYPE_3: PromptTemplate.TYPE_MAJOR_ANALYZING_PROMPT,  # 专业意向解析
+    Conversation.TYPE_4: PromptTemplate.TYPE_COLLEGE_ANALYZING_PROMPT,  # 意向院校解析
+    Conversation.TYPE_5: PromptTemplate.TYPE_STRATEGY_ANALYZING_PROMPT,  # 院校专业策略解析
+    Conversation.TYPE_6: PromptTemplate.TYPE_S_SUBJECT_ANALYZING_PROMPT,  # 优势学科解析
+    Conversation.TYPE_7: PromptTemplate.TYPE_W_SUBJECT_ANALYZING_PROMPT,  # 劣势学科解析
 }
 
 class LLMService:
@@ -131,7 +131,8 @@ class LLMService:
             }
         }
     ]
-    # 支持的提供者配置
+
+    # 支持的AI配置
     PROVIDERS = {
         "moonshot": {
             "api_env_key": "MOONSHOT_API_KEY",
@@ -416,12 +417,23 @@ class LLMService:
     @classmethod
     def kimi_tools(cls, user_input, history_msg, student_id, conversation_type, **kwargs):
         """kimi工具"""
-        prompt = CONVERSATION_PROMPTS.get(conversation_type, COMMON_PROMPT)
+        # 获取提示词类型
+        prompt_type = CONVERSATION_PROMPTS.get(conversation_type)
+        
+        # 从数据库获取提示词内容
+        prompt = cls._get_prompt_by_type(prompt_type)
+        
+        # 如果找不到提示词，使用默认提示词
+        if not prompt:
+            prompt = COMMON_PROMPT
+        
+        # 特殊类型的会话直接添加学生信息并使用普通聊天
         if conversation_type in {Conversation.TYPE_5, Conversation.TYPE_6, Conversation.TYPE_7}:
             user_input = user_input + StudentDataService.generate_student_profile_text(student_id)
             yield from cls.common_chat(user_input, history_msg, system=prompt, **kwargs)
             return
 
+        # 常规处理
         tools = cls.tools
         system = prompt + f'# 学生ID为：{student_id}'
         kwargs["stream"] = True
