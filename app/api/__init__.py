@@ -14,6 +14,7 @@ from app.api.endpoints.volunteer_analysis import volunteer_analysis_bp  # 导入
 from app.api.endpoints.tasks import tasks_bp  # 导入任务蓝图
 from app.api.endpoints.chat import chat_bp  # 导入聊天蓝图
 from app.api.endpoints.config import config_bp  # 导入配置蓝图
+from app.api.endpoints.institution import institution_bp  # 导入机构蓝图
 # 创建主API蓝图
 api_bp = Blueprint('api', __name__)
 def register_blueprint(blueprint, url_prefix):
@@ -45,5 +46,5 @@ register_blueprint(volunteer_plan_bp, '/volunteer-plans')
 register_blueprint(volunteer_analysis_bp, '/volunteer-analysis')  # 注册志愿分析蓝图
 register_blueprint(chat_bp, '/chat')  # 注册聊天蓝图
 register_blueprint(config_bp, '/config')  # 注册配置蓝图
-
+register_blueprint(institution_bp, '/institutions')  # 注册机构蓝图
 

@@ -183,12 +183,11 @@ def create_planner(data):
     管理员创建规划师账号（需要管理员权限）
     """
     # 获取当前用户并验证权限
-    # current_user_id = get_jwt_identity()
-    # current_user = User.query.get_or_404(current_user_id)
-    
-    # # 检查是否有管理员权限（这里简化为是否为规划师，实际中可能需要更复杂的权限系统）
-    # if not current_user.is_planner():
-    #     return APIResponse.error("权限不足", code=403)
+    # 检查权限 (假设只有管理员可以创建机构)
+    user_id = get_jwt_identity()
+    user = User.query.get_or_404(int(user_id))
+    if user.user_type != User.USER_TYPE_ADMIN:
+        return APIResponse.error(message="没有权限访问该接口", code=403)
     
     username = data['username']
     password = data['password']

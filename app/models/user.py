@@ -34,6 +34,7 @@ class User(Base):
     last_login_ip = db.Column(db.String(50), nullable=True)
     planner_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     consultation_status = db.Column(db.String(20), comment='学生用户咨询状态')
+    institution_id = db.Column(db.Integer, db.ForeignKey('institutions.id'), nullable=True, comment='所属机构ID')
 
     students = db.relationship(
         'User', 

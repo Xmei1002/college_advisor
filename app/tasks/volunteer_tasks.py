@@ -127,7 +127,6 @@ def analyze_specialty_task(self, specialty_id):
             'specialty_id': specialty_id,
             'message': f'分析过程出错: {str(e)}'
         }
-    
 
 @celery.task(bind=True)
 def analyze_student_snapshots_ai(self, plan_id, current_snapshot, previous_snapshot):

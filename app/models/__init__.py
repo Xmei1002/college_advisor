@@ -31,3 +31,6 @@ from app.models.student_volunteer_plan import StudentVolunteerPlan, VolunteerCol
 from app.models.messages import Message
 from app.models.conversations import Conversation
 from app.models.llm_configuration import LLMConfiguration
+
+# 机构表
+from app.models.institution import Institution

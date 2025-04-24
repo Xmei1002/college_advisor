@@ -45,7 +45,6 @@ class PlanDetailQueryParamsSchema(Schema):
     group_id = fields.Integer(required=False, description="按志愿段ID过滤(1-12)")
     volunteer_index = fields.Integer(required=False, description="按志愿序号过滤(1-48)")
 
-
 # 专业志愿Schema
 class VolunteerSpecialtySchema(Schema):
     class Meta:
@@ -67,7 +66,7 @@ class VolunteerCollegeSchema(Schema):
         unknown = EXCLUDE  # 允许忽略未知字段
     category_id = fields.Integer(required=True, validate=validate.Range(min=1, max=3))
     group_id = fields.Integer(required=True, validate=validate.Range(min=1, max=12))
-    volunteer_index = fields.Integer(required=True, validate=validate.Range(min=1, max=48))
+    volunteer_index = fields.Integer(required=True, validate=validate.Range(min=1))
     college_id = fields.Integer(required=True)
     college_name = fields.String(required=True)
     college_group_id = fields.Integer(required=True)
