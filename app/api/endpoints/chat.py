@@ -139,11 +139,9 @@ def stream_chat(args):
     current_user_id = get_jwt_identity()
     current_user = User.query.get_or_404(current_user_id)
     is_planner = current_user.user_type == User.USER_TYPE_PLANNER
-    if not is_planner:
+    is_admin = current_user.user_type == User.USER_TYPE_ADMIN
+    if not is_planner and not is_admin:
         return APIResponse.error("无权限访问该接口", code=403)
-    
-    if current_user.id != planner_id:
-        return APIResponse.error("无权进行此操作", code=403)
     
     app = current_app._get_current_object()  # 获取实际的应用对象
 

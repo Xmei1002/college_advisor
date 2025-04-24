@@ -166,52 +166,25 @@ def get_colleges_by_category(data):
     # 从学生ID提取学生信息
     recommendation_data = StudentDataService.extract_college_recommendation_data(student_id)
     
-    # 检查缓存逻辑
-    from app.extensions import cache
-    from app.utils.user_hash import calculate_user_data_hash
-    
-    # 获取当前学生数据的哈希值
-    current_hash = calculate_user_data_hash(recommendation_data)
-    
-    # 缓存键仅使用学生ID、类别ID和志愿段ID
-    cache_key = f"colleges:{student_id}:{category_id}:{group_id}"
-    
-    # 获取志愿方案中保存的用户数据哈希
-    cached_hash = None
-    if current_plan:
-        cached_hash = current_plan.user_data_hash
-    
-    # 尝试从缓存获取结果
-    cached_result = cache.get(cache_key)
-    college_groups = None
-    pagination = None
-    
-    # 如果缓存存在且学生数据哈希未变化，使用缓存的院校数据
-    if cached_result and cached_hash and cached_hash == current_hash:
-        college_groups, pagination = cached_result
-    else:
-        # 调用服务获取推荐院校
-        college_groups, pagination = RecommendationService.get_colleges_by_category_and_group(
-            student_score = recommendation_data['student_score'] if recommendation_data['student_score'] is not None and recommendation_data['student_score'] > 0 else recommendation_data['mock_exam_score'],
-            subject_type=recommendation_data['subject_type'],
-            education_level=recommendation_data['education_level'],
-            category_id=category_id,
-            group_id=group_id,
-            student_subjects=recommendation_data['student_subjects'],
-            area_ids=recommendation_data['area_ids'],
-            specialty_types=recommendation_data['specialty_types'],
-            mode=mode,
-            page=page,
-            per_page=per_page,
-            tese_types=recommendation_data.get('tese_types'),
-            leixing_types=recommendation_data.get('leixing_types'),
-            teshu_types=recommendation_data.get('teshu_types'),
-            tuition_ranges=recommendation_data.get('tuition_ranges')
-        )
+    # 调用服务获取推荐院校
+    college_groups, pagination = RecommendationService.get_colleges_by_category_and_group(
+        student_score = recommendation_data['student_score'] if recommendation_data['student_score'] is not None and recommendation_data['student_score'] > 0 else recommendation_data['mock_exam_score'],
+        subject_type=recommendation_data['subject_type'],
+        education_level=recommendation_data['education_level'],
+        category_id=category_id,
+        group_id=group_id,
+        student_subjects=recommendation_data['student_subjects'],
+        area_ids=recommendation_data['area_ids'],
+        specialty_types=recommendation_data['specialty_types'],
+        mode=mode,
+        page=page,
+        per_page=per_page,
+        tese_types=recommendation_data.get('tese_types'),
+        leixing_types=recommendation_data.get('leixing_types'),
+        teshu_types=recommendation_data.get('teshu_types'),
+        tuition_ranges=recommendation_data.get('tuition_ranges')
+    )
         
-        # 将结果存入缓存，有效期1天
-        cache.set(cache_key, (college_groups, pagination), timeout=86400)  # 24小时缓存
-    
     # 为每个专业组添加选择状态信息
     for group in college_groups:
         group_key = (group['cgid'], group['cid'])
@@ -442,6 +415,6 @@ def get_college_stats(data):
         result['total_colleges'] += category_data['total_colleges']
     
     # 将结果存入缓存，有效期1天
-    cache.set(cache_key, result, timeout=1209600)  # 两周缓存
+    cache.set(cache_key, result, timeout=86400)  # 一天
     
     return APIResponse.success(result, message="获取院校统计数据成功")

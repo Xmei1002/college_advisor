@@ -280,31 +280,40 @@ class RecommendationService:
         
         # 添加地区筛选 - 考虑多个地区及其子地区
         if area_ids:
+            # 收集所有选中地区及其子地区的ID
             all_area_ids = []
             for area_id in area_ids:
+                # 获取当前地区及其所有子地区
                 child_area_ids = CollegeRepository.get_all_child_areas(area_id)
                 all_area_ids.extend(child_area_ids)
             
+            # 去重
             all_area_ids = list(set(all_area_ids))
             
+            # 如果有收集到地区ID，添加筛选条件
             if all_area_ids:
                 query = query.filter(ZwhXgkYuanxiao2025.aid.in_(all_area_ids))
         
-        # 添加专业类型筛选
+        # 添加专业类型筛选 - 与获取数据方法保持一致
         if specialty_types:
+            # 子查询：查找包含任一指定专业类型的专业组
             subquery = db.session.query(ZwhXgkFenshuxian2025.cgid).filter(
                 ZwhXgkFenshuxian2025.subclassid.in_(specialty_types),
-                ZwhXgkFenshuxian2025.spid != 32767
+                ZwhXgkFenshuxian2025.spid != 32767  # 排除投档线记录
             ).distinct().subquery()
             
-            query = query.filter(ZwhXgkFenshuxian2025.cgid.in_(subquery))
+            # 使用与获取数据方法相同的转换方式
+            subquery_select = subquery.select()  # 显式转换为 select()
+            query = query.filter(ZwhXgkFenshuxian2025.cgid.in_(subquery_select))
         
         # 添加学校特色筛选
         if tese_types:
+            # 构建SQL条件以匹配任意一个特色类型
             tese_conditions = []
             for tese_type in tese_types:
                 tese_conditions.append(ZwhXgkYuanxiao2025.tese.like(f'%{tese_type}%'))
             
+            # 将所有条件用OR连接
             if tese_conditions:
                 query = query.filter(db.or_(*tese_conditions))
         
@@ -314,6 +323,7 @@ class RecommendationService:
         
         # 添加特殊类型筛选
         if teshu_types:
+            # 构建SQL条件
             teshu_conditions = []
             for teshu_type in teshu_types:
                 teshu_conditions.append(ZwhXgkYuanxiao2025.teshu.like(f'%{teshu_type}%'))
@@ -323,33 +333,42 @@ class RecommendationService:
         
         # 添加选科匹配条件
         if student_subjects:
+            # 遍历学生选科情况
             for subject_key, subject_value in student_subjects.items():
                 if subject_value == 1:  # 学生选了该科目
                     continue  # 无需额外筛选
                 elif subject_value == 2:  # 学生没选该科目
+                    # 只能匹配专业对该科目无要求(值为2)的情况
                     query = query.filter(getattr(ZwhXgkFenzu2025, subject_key) == 2)
         
-        # 添加学费范围筛选
+        # 添加学费范围筛选 - 与获取数据方法保持一致
         if tuition_ranges:
+            # 构建学费筛选条件
             tuition_conditions = []
             for min_fee, max_fee in tuition_ranges:
                 if max_fee is None:
+                    # "X万以上"的情况
                     tuition_conditions.append(ZwhXgkFenzu2025.minxuefei >= min_fee)
                 else:
+                    # 匹配情况1：学校的最低学费在范围内
                     condition1 = db.and_(
                         ZwhXgkFenzu2025.minxuefei >= min_fee,
                         ZwhXgkFenzu2025.minxuefei <= max_fee
                     )
+                    # 匹配情况2：学校的最高学费在范围内
                     condition2 = db.and_(
                         ZwhXgkFenzu2025.maxxuefei >= min_fee,
                         ZwhXgkFenzu2025.maxxuefei <= max_fee
                     )
+                    # 匹配情况3：学校的学费范围完全包含所选范围
                     condition3 = db.and_(
                         ZwhXgkFenzu2025.minxuefei <= min_fee,
                         ZwhXgkFenzu2025.maxxuefei >= max_fee
                     )
+                    # 将三种匹配情况以OR连接
                     tuition_conditions.append(db.or_(condition1, condition2, condition3))
             
+            # 将所有学费范围条件以OR连接
             if tuition_conditions:
                 query = query.filter(db.or_(*tuition_conditions))
         

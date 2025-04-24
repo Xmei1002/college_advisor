@@ -1909,6 +1909,7 @@ def ai_select_college_ids(filtered_colleges, user_info, recommendation_data, is_
     :return: 选择的院校ID列表
     """
     try:
+
         # 检查学生是否有高考成绩
         has_gaokao_score = recommendation_data.get('student_score', 0) > 0
         
@@ -2176,6 +2177,8 @@ def generate_complete_volunteer_plan(student_id, planner_id, user_data_hash, is_
         student_id=student_id,
         is_current=True
     ).order_by(StudentVolunteerPlan.version.desc()).first()
+
+    
     previous_snapshot = json.dumps(previous_plan.student_data_snapshot, ensure_ascii=False) if previous_plan else None
 
     # 创建空方案并设置所有初始状态

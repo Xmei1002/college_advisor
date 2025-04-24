@@ -377,7 +377,7 @@ class LLMService:
         return cls._call_api(user_input=user_input, system=system, **kwargs)
 
     @classmethod
-    def common_chat(cls, user_input, history_msg, system, **kwargs):
+    def common_chat(cls, user_input, history_msg, system=None, **kwargs):
         """分析志愿方案"""
         system = system or COMMON_PROMPT
 
@@ -422,7 +422,7 @@ class LLMService:
         
         # 从数据库获取提示词内容
         prompt = cls._get_prompt_by_type(prompt_type)
-        
+
         # 如果找不到提示词，使用默认提示词
         if not prompt:
             prompt = COMMON_PROMPT

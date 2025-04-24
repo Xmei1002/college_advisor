@@ -32,7 +32,7 @@ class MessageQuerySchema(Schema):
 class StreamChatRequestSchema(Schema):
     """流式聊天请求"""
     student_id = fields.Integer(required=True, description="学生ID")
-    planner_id = fields.Integer(required=True, description="规划师ID")
+    planner_id = fields.Integer(required=True, description="规划师ID，如果是管理员发起的，则传入id为0")
     conversation_type = fields.String(
         required=True, 
         description="会话类型", 
