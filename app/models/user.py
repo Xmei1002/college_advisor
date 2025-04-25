@@ -120,6 +120,8 @@ class User(Base):
         # 如果是规划师，可以添加学生数量信息
         if self.is_planner():
             result['student_count'] = User.query.filter_by(planner_id=self.id).count()
+            if self.institution_id and hasattr(self, 'institution') and self.institution:
+                result['institution'] = self.institution.to_dict()
         
         # 如果是学生且需要包含详细信息
         if self.is_student() and include_student_profile:

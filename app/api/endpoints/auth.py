@@ -171,42 +171,42 @@ def login(data):
         message="登录成功"
     )
 
-@auth_bp.route('/planner', methods=['POST'])
-@auth_bp.arguments(CreatePlannerSchema)
-@auth_bp.response(200, AuthResponseSchema)
+# @auth_bp.route('/planner', methods=['POST'])
+# @auth_bp.arguments(CreatePlannerSchema)
+# @auth_bp.response(200, AuthResponseSchema)
 # @jwt_required()
-@api_error_handler
-def create_planner(data):
-    """
-    创建规划师账号
+# @api_error_handler
+# def create_planner(data):
+#     """
+#     创建规划师账号
     
-    管理员创建规划师账号（需要管理员权限）
-    """
-    # 获取当前用户并验证权限
-    # 检查权限 (假设只有管理员可以创建机构)
-    user_id = get_jwt_identity()
-    user = User.query.get_or_404(int(user_id))
-    if user.user_type != User.USER_TYPE_ADMIN:
-        return APIResponse.error(message="没有权限访问该接口", code=403)
+#     管理员创建规划师账号（需要管理员权限）
+#     """
+#     # 获取当前用户并验证权限
+#     # 检查权限 (假设只有管理员可以创建机构)
+#     user_id = get_jwt_identity()
+#     user = User.query.get_or_404(int(user_id))
+#     if user.user_type != User.USER_TYPE_ADMIN:
+#         return APIResponse.error(message="没有权限访问该接口", code=403)
     
-    username = data['username']
-    password = data['password']
+#     username = data['username']
+#     password = data['password']
     
-    # 检查用户名是否已存在
-    if User.query.filter_by(username=username).first():
-        return APIResponse.error("该用户名已存在", code=400)
+#     # 检查用户名是否已存在
+#     if User.query.filter_by(username=username).first():
+#         return APIResponse.error("该用户名已存在", code=400)
     
-    # 创建规划师账号
-    user = AuthService.create_planner(username, password)
+#     # 创建规划师账号
+#     user = AuthService.create_planner(username, password)
     
-    # 生成令牌
-    tokens = AuthService.generate_tokens(user)
+#     # 生成令牌
+#     tokens = AuthService.generate_tokens(user)
     
-    return APIResponse.success(
-        data=tokens,
-        message="规划师账号创建成功",
-        code=200
-    )
+#     return APIResponse.success(
+#         data=tokens,
+#         message="规划师账号创建成功",
+#         code=200
+#     )
 
 @auth_bp.route('/me', methods=['GET'])
 @auth_bp.response(200, UserSchema)

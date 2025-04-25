@@ -452,15 +452,13 @@ class StudentDataService:
                         gradient_counts = {}
                 text_parts.append(f"自定义梯度设置：冲刺志愿{gradient_counts.get('chasing', 0)}个，稳妥志愿{gradient_counts.get('stable', 0)}个，保底志愿{gradient_counts.get('safe', 0)}个")
                 
-            text_parts.append(f"报考批次：{college_pref.application_batch or '未填写'}")
-            
             # 报考限制信息
             text_parts.append("\n【报考限制条件】")
-            text_parts.append(f"接受不可转专业中外合办专业：{'是' if college_pref.accept_nonchangeable_major else '否'}")
-            text_parts.append(f"具备美术基础：{'是' if college_pref.has_art_foundation else '否'}")
-            text_parts.append(f"接受大学期间需出国就读：{'是' if college_pref.accept_overseas_study else '否'}")
-            text_parts.append(f"接受学费刺客专业：{'是' if college_pref.accept_high_fee_increase else '否'}")
-            text_parts.append(f"接受在两个城市上学安排：{'是' if college_pref.accept_dual_city_arrangement else '否'}")
+            text_parts.append(f"接受不可转专业中外合办专业：{StudentDataService.get_preference_text(college_pref.accept_nonchangeable_major)}")
+            text_parts.append(f"具备美术基础：{StudentDataService.get_preference_text(college_pref.has_art_foundation)}")
+            text_parts.append(f"接受大学期间需出国就读：{StudentDataService.get_preference_text(college_pref.accept_overseas_study)}")
+            text_parts.append(f"接受学费刺客专业：{StudentDataService.get_preference_text(college_pref.accept_high_fee_increase)}")
+            text_parts.append(f"接受在两个城市上学安排：{StudentDataService.get_preference_text(college_pref.accept_dual_city_arrangement)}")
             
             if college_pref.application_preference:
                 text_parts.append("\n【报考倾向详情】")
@@ -470,6 +468,12 @@ class StudentDataService:
         
         # 合并所有文本部分
         return "\n".join(text_parts)
+    
+    @staticmethod
+    def get_preference_text(value):
+        if value is None:
+            return "未填写"
+        return "是" if value else "否"
     
     @staticmethod
     def generate_student_data_snapshot(student_id):
@@ -499,7 +503,6 @@ class StudentDataService:
             '意向地域': college_pref.preferred_locations if college_pref else '',
             '意向专业': college_pref.preferred_majors if college_pref else '',
             '学费范围': college_pref.tuition_range if college_pref else '',
-            '志愿梯度策略': college_pref.volunteer_gradient_strategy if college_pref else '',
             '报考批次': college_pref.application_batch if college_pref else '',
             '就业方向': college_pref.career_direction if college_pref else '',
             '模考成绩': academic_record.mock_exam_score or ''

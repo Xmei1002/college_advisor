@@ -8,6 +8,7 @@ class CreatePlannerManagementSchema(Schema):
     password = fields.String(required=True, description="密码")
     phone = fields.String(description="联系电话")
     address = fields.String(description="地址")
+    institution_id = fields.Integer(description="所属机构ID")  # 添加机构ID字段
 
 # 定义更新规划师的Schema
 class UpdatePlannerManagementSchema(Schema):

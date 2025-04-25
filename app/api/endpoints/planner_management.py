@@ -18,6 +18,7 @@ from app.api.schemas.planner_management import (
     PlannerResponseSchema,
     PlannerListResponseSchema
 )
+from app.models.institution import Institution
 
 # 创建规划师管理蓝图
 planner_management_bp = Blueprint(
@@ -84,12 +85,8 @@ def get_planner(planner_id):
     # 查询规划师
     planner = User.query.filter_by(id=planner_id, user_type=User.USER_TYPE_PLANNER).first_or_404()
     
-    # 统计学生数量
-    student_count = User.query.filter_by(planner_id=planner.id, user_type=User.USER_TYPE_STUDENT).count()
-    
     # 构建响应数据
     planner_dict = planner.to_dict()
-    planner_dict['student_count'] = student_count
     
     # 添加规划师详细信息
     if hasattr(planner, 'planner_info') and planner.planner_info:
@@ -115,16 +112,25 @@ def create_planner(data):
     user = User.query.get_or_404(int(user_id))
     if user.user_type != User.USER_TYPE_ADMIN:
         return APIResponse.error(message="没有权限访问该接口", code=403)
+    
     username = data['username']
     password = data['password']
+    institution_id = data.get('institution_id')  # 获取机构ID
     
     # 检查用户名是否已存在
     if User.query.filter_by(username=username).first():
         return APIResponse.error("该用户名已存在", code=400)
     
+    # 如果提供了机构ID，检查机构是否存在
+    if institution_id:
+        institution = Institution.query.get(institution_id)
+        if not institution:
+            return APIResponse.error(message="指定的机构不存在", code=400)
+    
     try:
-        # 创建规划师账号
+        # 创建规划师账号，并设置机构ID
         planner = AuthService.create_planner(username, password)
+        planner.institution_id = institution_id  # 设置机构ID
         
         # 保存用户基本信息
         db.session.flush()  # 确保user_id已生成
@@ -181,7 +187,6 @@ def update_planner(data, planner_id):
         # 更新密码
         if 'password' in data and data['password']:
             planner.password = data['password']
-        
         
         planner.updated_at = datetime.now(timezone.utc)
         
