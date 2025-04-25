@@ -1,6 +1,7 @@
 # app/models/institution.py
 from app.extensions import db
 from app.models.base import Base
+from app.services.storage.file_service import FileService
 
 class Institution(Base):
     """机构信息模型"""
@@ -26,6 +27,8 @@ class Institution(Base):
             'address': self.address,
             'qrcode_path': self.qrcode_path,
             'logo_path': self.logo_path,
+            'qrcode_url': FileService.get_file_url(self.qrcode_path) if self.qrcode_path else None,
+            'logo_url': FileService.get_file_url(self.logo_path) if self.logo_path else None,
             'contact_phone': self.contact_phone,
             'contact_email': self.contact_email,
             'description': self.description,

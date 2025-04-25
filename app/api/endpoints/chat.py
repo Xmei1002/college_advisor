@@ -47,7 +47,7 @@ def list_conversations(args):
     is_planner = current_user.user_type == User.USER_TYPE_PLANNER
     if not is_planner:
         return APIResponse.error("无权限访问该接口", code=403)
-    
+
     # 获取查询参数
     page = args.get('page', 1)
     per_page = args.get('per_page', 20)
@@ -63,12 +63,17 @@ def list_conversations(args):
         page=page,
         per_page=per_page
     )
-    
-    return APIResponse.pagination(
-        items=result['conversations'],
-        total=result['pagination']['total'],
-        page=page,
-        per_page=per_page,
+
+    return APIResponse.success(
+        data={
+            'items': result['conversations'],
+            'pagination': {
+                'total': result['pagination']['total'],
+                'pages': result['pagination'].get('pages', 0),
+                'page': page,
+                'per_page': per_page
+            }
+        },
         message="获取会话列表成功"
     )
 
@@ -109,11 +114,16 @@ def get_conversation_messages(args, conversation_id):
         per_page=per_page
     )
     
-    return APIResponse.pagination(
-        items=result['messages'],
-        total=result['pagination']['total'],
-        page=page,
-        per_page=per_page,
+    return APIResponse.success(
+        data={
+            'items': result['messages'],
+            'pagination': {
+                'total': result['pagination']['total'],
+                'pages': result['pagination'].get('pages', 0),
+                'page': page,
+                'per_page': per_page
+            }
+        },
         message="获取消息记录成功"
     )
 

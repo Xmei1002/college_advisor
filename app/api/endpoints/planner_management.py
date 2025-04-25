@@ -116,7 +116,7 @@ def create_planner(data):
     username = data['username']
     password = data['password']
     institution_id = data.get('institution_id')  # 获取机构ID
-    
+
     # 检查用户名是否已存在
     if User.query.filter_by(username=username).first():
         return APIResponse.error("该用户名已存在", code=400)
@@ -187,7 +187,10 @@ def update_planner(data, planner_id):
         # 更新密码
         if 'password' in data and data['password']:
             planner.password = data['password']
-        
+
+        if 'status' in data and data['status'] is not None:
+            planner.status = data['status']
+
         planner.updated_at = datetime.now(timezone.utc)
         
         # 更新或创建规划师详细信息
@@ -198,6 +201,7 @@ def update_planner(data, planner_id):
         
         if 'phone' in data and data['phone'] is not None:
             planner_info.phone = data['phone']
+            
         if 'address' in data and data['address'] is not None:
             planner_info.address = data['address']
         

@@ -34,3 +34,13 @@ from app.models.llm_configuration import LLMConfiguration
 
 # 机构表
 from app.models.institution import Institution
+
+# 测评表
+from app.models.ceping_job_zhuanye import CepingJobZhuanye
+from app.models.ceping_job_leixing import CepingJobLeixing
+from app.models.ceping_job_answer import CepingJobAnswer
+from app.models.ceping_job_timu import CepingJobTimu
+from app.models.ceping_job_weidu import CepingJobWeidu
+from app.models.ceping_mbti_answer import CepingMbtiAnswer
+from app.models.ceping_mbti_timu import CepingMbtiTimu
+from app.models.ceping_mbti_leixing import CepingMbtiLeixing

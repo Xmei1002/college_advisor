@@ -494,6 +494,30 @@ def get_my_planner():
         message="获取成功"
     )
 
+@student_bp.route('/<int:student_id>/planner', methods=['GET'])
+@api_error_handler
+def get_student_planner(student_id):
+    """
+    根据学生ID返回该学生的规划师信息
+    """
+    # 获取学生信息
+    student_record = Student.query.get(student_id)
+    if not student_record:
+        return APIResponse.error("未找到该学生", code=404)
+    user_id = student_record.user_id
+    student = User.query.get_or_404(user_id)
+    
+    if not student.is_student():
+        return APIResponse.error("当前用户不是学生", code=403)
+    
+    if not student.planner:
+        return APIResponse.error("该学生还没有分配规划师", code=404)
+    
+    return APIResponse.success(
+        data=student.planner.to_dict(),
+        message="获取成功"
+    )
+
 @student_bp.route('/comprehensive-info', methods=['GET'])
 @student_bp.response(200, ComprehensiveStudentResponseSchema)
 @jwt_required()

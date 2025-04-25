@@ -1,6 +1,7 @@
 from marshmallow import Schema, fields, validate
 from app.models.user import User
 from app.api.schemas import PaginationSchema
+
 # 定义创建规划师的Schema
 class CreatePlannerManagementSchema(Schema):
     """创建规划师Schema"""

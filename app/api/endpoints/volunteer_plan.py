@@ -111,11 +111,16 @@ def get_plan_history(query_args, student_id):
     # 构建响应数据
     plan_list = [plan.to_dict() for plan in plans.items]
     
-    return APIResponse.pagination(
-        items=plan_list,
-        total=plans.total,
-        page=page,
-        per_page=per_page,
+    return APIResponse.success(
+        data={
+            'items': plan_list,
+            'pagination': {
+                'total': plans.total,
+                'pages': plans.pages,
+                'page': page,
+                'per_page': per_page
+            }
+        },
         message="获取历史志愿方案成功"
     )
 

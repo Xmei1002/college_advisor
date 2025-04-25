@@ -20,7 +20,7 @@ institution_bp = Blueprint(
 
 @institution_bp.route('/create', methods=['POST'])
 @institution_bp.arguments(CreateInstitutionSchema, location="form")
-@institution_bp.response(201, InstitutionResponseSchema)
+@institution_bp.response(200, InstitutionResponseSchema)
 @jwt_required()
 @api_error_handler
 def create_institution(schema_args):
@@ -35,15 +35,16 @@ def create_institution(schema_args):
     if user.user_type != User.USER_TYPE_ADMIN:
         return APIResponse.error(message="没有权限访问该接口", code=403)
     
-    logo_file = request.files.get('logo')
-    qrcode_file = request.files.get('qrcode')
-    
+    logo_file = request.files.get('logo_path')
+    qrcode_file = request.files.get('qrcode_path')
+    print("logo_file", logo_file)
+    print("qrcode_file", qrcode_file)
     institution = InstitutionService.create_institution(schema_args, logo_file, qrcode_file)
     
     return APIResponse.success(
         data=institution.to_dict(),
         message="机构创建成功",
-        code=201
+        code=200
     )
 
 @institution_bp.route('/<int:institution_id>', methods=['PUT'])
@@ -63,8 +64,8 @@ def update_institution(schema_args, institution_id):
     if user.user_type != User.USER_TYPE_ADMIN:
         return APIResponse.error(message="没有权限访问该接口", code=403)
     
-    logo_file = request.files.get('logo')
-    qrcode_file = request.files.get('qrcode')
+    logo_file = request.files.get('logo_path')
+    qrcode_file = request.files.get('qrcode_path')
     
     institution = InstitutionService.update_institution(institution_id, schema_args, logo_file, qrcode_file)
     
@@ -125,11 +126,16 @@ def list_institutions(schema_args):
     
     data = [institution.to_dict() for institution in institutions]
     
-    return APIResponse.pagination(
-        items=data,
-        total=pagination['total'],
-        page=pagination['page'],
-        per_page=pagination['per_page'],
+    return APIResponse.success(
+        data={
+            'items': data,
+            'pagination': {
+                'total': pagination['total'],
+                'pages': pagination.get('pages', 0),
+                'page': pagination['page'],
+                'per_page': pagination['per_page']
+            }
+        },
         message="获取成功"
     )
 

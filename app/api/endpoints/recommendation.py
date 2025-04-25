@@ -210,11 +210,16 @@ def get_colleges_by_category(data):
     # 根据是否选择和volunteer_index排序：已选择的排在前面，按volunteer_index升序
     college_groups.sort(key=lambda x: (0 if x.get('is_selected') else 1, x.get('volunteer_index', float('inf'))))
     
-    return APIResponse.pagination(
-        items=college_groups,
-        total=pagination['total'],
-        page=pagination['page'],
-        per_page=pagination['per_page'],
+    return APIResponse.success(
+        data={
+            'items': college_groups,
+            'pagination': {
+                'total': pagination['total'],
+                'pages': pagination.get('pages', 0),
+                'page': pagination['page'],
+                'per_page': pagination['per_page']
+            }
+        },
         message="获取成功"
     )
 
