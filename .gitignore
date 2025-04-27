@@ -15,6 +15,7 @@ dist/
 build/
 *.log
 uploads/
+app/static/reports/
 
 # Flask specific
 instance/

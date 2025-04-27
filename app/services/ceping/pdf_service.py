@@ -11,38 +11,58 @@ from io import BytesIO
 import json
 import os
 import time
+import traceback
 from flask import current_app
+from abc import ABC, abstractmethod
 
-class PdfService:
-    """PDF报告生成服务"""
+
+class BasePdfService(ABC):
+    """PDF报告生成基础服务"""
     
     def __init__(self):
-        # 注册字体（常规和粗体两种）
+        """初始化PDF服务基础组件"""
+        # 注册字体
         self._register_fonts()
         
-        # 设置样式
+        # 创建颜色常量
+        self.colors = self._create_color_palette()
+        
+        # 创建样式
         self.styles = self._create_styles()
         
-        # 设置颜色常量
-        self.colors = {
-            'title_blue': colors.HexColor('#14a9df'),
-            'title_dark': colors.HexColor('#235869'),
-            'green': colors.HexColor('#008000'),
-            'orange': colors.HexColor('#fdbb5a'),
-            'dark_blue': colors.HexColor('#1d94f8'),
-            'light_grey': colors.HexColor('#f5f5f5'),
-        }
-        
-        # 创建输出目录
+        # 设置路径
+        self._setup_paths()
+    
+    def _setup_paths(self):
+        """设置输出和资源路径"""
         base_dir = current_app.root_path
+        # 输出目录
         self.output_dir = os.path.join(base_dir, 'static', 'reports')
         os.makedirs(self.output_dir, exist_ok=True)
         
-        # 图片资源路径
+        # 资源目录
         self.resources_dir = os.path.join(base_dir, 'static', 'images')
+        
+        # 常用资源路径
+        self.logo_path = os.path.join(self.resources_dir, 'logo.png')
+        self.line_path = os.path.join(self.resources_dir, 'xian.png')
+        self.star_path = os.path.join(self.resources_dir, 'xingxing.png')
+        self.separator_path = os.path.join(self.resources_dir, 'stitle_bg.png')
+    
+    def _create_color_palette(self):
+        """创建颜色调色板"""
+        return {
+            'title_blue': colors.HexColor('#14a9df'),  # 标题蓝
+            'title_dark': colors.HexColor('#235869'),  # 深标题色
+            'green': colors.HexColor('#008000'),       # 绿色
+            'orange': colors.HexColor('#fdbb5a'),      # 橙色
+            'dark_blue': colors.HexColor('#1d94f8'),   # 深蓝
+            'light_blue': colors.HexColor('#1ca4b6'),  # 浅蓝
+            'light_grey': colors.HexColor('#f5f5f5'),  # 浅灰
+        }
     
     def _register_fonts(self):
-        """注册中文字体（常规和粗体）"""
+        """注册中文字体"""
         try:
             base_dir = current_app.root_path
             font_dir = os.path.join(base_dir, 'static', 'fonts')
@@ -67,9 +87,9 @@ class PdfService:
             current_app.logger.error(f"字体加载失败: {str(e)}")
             self.default_font = 'Helvetica'
             self.bold_font = 'Helvetica-Bold'
-            
+    
     def _create_styles(self):
-        """创建样式集合"""
+        """创建报告通用样式集合"""
         styles = {}
         
         # 封面标题
@@ -111,7 +131,7 @@ class PdfService:
             leading=46,
             spaceAfter=10,
             textColor=colors.white,
-            backColor=colors.HexColor('#14a9df'),
+            backColor=self.colors['title_blue'],
             leftIndent=20
         )
         
@@ -131,7 +151,7 @@ class PdfService:
             fontSize=16,
             leading=22,
             spaceAfter=8,
-            textColor=colors.HexColor('#235869')
+            textColor=self.colors['title_dark']
         )
         
         # 三级标题
@@ -154,6 +174,14 @@ class PdfService:
             firstLineIndent=32  # 首行缩进
         )
         
+        # 列表项样式
+        styles['List_Item'] = ParagraphStyle(
+            name='List_Item',
+            parent=styles['Normal'],
+            firstLineIndent=0,
+            leftIndent=15
+        )
+        
         # 目录条目
         styles['TOC_Item'] = ParagraphStyle(
             name='TOC_Item',
@@ -161,7 +189,7 @@ class PdfService:
             fontSize=16,
             leading=22,
             spaceAfter=8,
-            textColor=colors.HexColor('#14a9df')
+            textColor=self.colors['title_blue']
         )
         
         # 页脚
@@ -184,8 +212,7 @@ class PdfService:
         
         return styles
     
-    # 绘制页眉、页脚
-    def _draw_header(self, canvas, doc, title, logo_path, display_page_num=True):
+    def _draw_header(self, canvas, doc, title, display_page_num=True):
         """绘制页眉和页码"""
         canvas.saveState()
         
@@ -194,8 +221,8 @@ class PdfService:
         canvas.rect(10*mm, 275*mm, 190*mm, 13*mm, fill=1)
         
         # 添加Logo
-        if os.path.exists(logo_path):
-            canvas.drawImage(logo_path, 10*mm, 275*mm, width=51*mm, height=13*mm)
+        if os.path.exists(self.logo_path):
+            canvas.drawImage(self.logo_path, 10*mm, 275*mm, width=51*mm, height=13*mm)
         
         # 添加标题
         canvas.setFont(self.default_font, 11)
@@ -209,17 +236,6 @@ class PdfService:
         
         canvas.restoreState()
     
-    # 绘制页脚
-    def _draw_footer(self, canvas, doc, page_num):
-        """绘制页脚"""
-        canvas.saveState()
-        
-        canvas.setFont(self.default_font, 10)
-        canvas.drawCentredString(105*mm, 15*mm, str(page_num))
-        
-        canvas.restoreState()
-    
-    # 确保文本安全（处理特殊字符）
     def _ensure_text_safe(self, text):
         """确保文本安全可用于PDF"""
         if text is None:
@@ -239,76 +255,108 @@ class PdfService:
         
         return text
     
-    # 创建画布背景
-    def _create_cover_canvas(self, file_path):
-        """创建带背景图的封面画布"""
-        c = canvas.Canvas(file_path, pagesize=A4)
+    def _add_common_cover(self, story, title, subtitle, student, answer, show_student_info=True):
+        """添加通用报告封面"""
+        # 生成标题
+        story.append(Paragraph(title, self.styles['Cover_Title']))
+        story.append(Spacer(1, 10*mm))
         
-        # 添加背景图
-        bg_path = os.path.join(self.resources_dir, 'backbj.png')
-        if os.path.exists(bg_path):
-            c.drawImage(bg_path, 0, 0, width=210*mm, height=297*mm)
+        # 添加分隔图片
+        if os.path.exists(self.separator_path):
+            story.append(Image(self.separator_path, width=140*mm, height=10*mm))
         
-        return c
+        # 生成副标题
+        story.append(Paragraph(subtitle, self.styles['Cover_Subtitle']))
+        story.append(Spacer(1, 80*mm))
+        
+        if show_student_info:
+            # 学生信息表格
+            student_data = [
+                ['姓       名:', student.name],
+                ['学       校:', student.school or ''],
+                ['报告时间:', time.strftime('%Y-%m-%d', time.localtime(answer.addtime))]
+            ]
+            
+            # 表格样式
+            table_style = TableStyle([
+                ('FONTNAME', (0, 0), (-1, -1), self.default_font),
+                ('FONTSIZE', (0, 0), (-1, -1), 16),
+                ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+                ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
+                ('ALIGN', (1, 0), (1, -1), 'LEFT'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('LEFTPADDING', (0, 0), (-1, -1), 5),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 5),
+                ('TOPPADDING', (0, 0), (-1, -1), 12),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+            ])
+            
+            # 创建表格并设置样式
+            student_table = Table(student_data, colWidths=[100, 220])
+            student_table.setStyle(table_style)
+            
+            # 使用嵌套表格实现居中对齐
+            page_width = A4[0] - 20*mm  # 页面宽度减去左右边距
+            outer_data = [[student_table]]
+            outer_table = Table(outer_data, colWidths=[page_width])
+            outer_table.setStyle(TableStyle([
+                ('ALIGN', (0, 0), (0, 0), 'CENTER'),
+                ('VALIGN', (0, 0), (0, 0), 'MIDDLE'),
+            ]))
+            
+            story.append(outer_table)
     
-    # 绘制分数条
-    def _draw_score_bar(self, canvas, x, y, width, score, max_score=20, color=colors.blue):
-        """绘制分数条"""
-        canvas.saveState()
-        
-        # 根据分数计算宽度比例
-        bar_width = (width * score / max_score)
-        
-        # 背景
-        canvas.setFillColor(colors.lightgrey)
-        canvas.rect(x, y, width, 10*mm, fill=1)
-        
-        # 前景
-        canvas.setFillColor(color)
-        canvas.rect(x, y, bar_width, 10*mm, fill=1)
-        
-        # 分数文本
-        canvas.setFillColor(colors.white)
-        canvas.setFont(self.default_font, 12)
-        canvas.drawCentredString(x + bar_width/2, y + 5*mm, str(score))
-        
-        canvas.restoreState()
+    def _add_common_copyright(self, story):
+        """添加版权声明"""
+        story.append(Spacer(1, 30*mm))
+        copyright_text = """
+        <font color="red">*</font>版权声明<br/>
+        本报告内容属于个人隐私，请注意保密<br/>
+        本报告必须在专业咨询师的指导下使用<br/>
+        本报告的所有权都受到版权保护，未经授权不得擅自转载、挪用、复制、刊印等，不得用于商业或非商业用途
+        """
+        story.append(Paragraph(copyright_text, self.styles['Copyright']))
     
-    # MBTI报告生成主方法
-    def generate_mbti_report(self, answer, student):
-        """生成MBTI测评报告"""
-        from app.models.ceping_mbti_leixing import CepingMbtiLeixing
+    def _add_common_toc(self, story, toc_items):
+        """添加通用目录"""
+        story.append(Paragraph('目录 Catalog', self.styles['Title']))
+        story.append(Spacer(1, 5*mm))
         
-        # 解析结果
-        jieguo = json.loads(answer.jieguo)
+        # 添加下划线图片
+        if os.path.exists(self.line_path):
+            story.append(Image(self.line_path, width=54*mm, height=2*mm))
         
-        # 计算人格类型
-        personality_type = ""
-        if jieguo['I']['count'] >= jieguo['E']['count']:
-            personality_type += 'I'
-        else:
-            personality_type += 'E'
-            
-        if jieguo['N']['count'] >= jieguo['S']['count']:
-            personality_type += 'N'
-        else:
-            personality_type += 'S'
-            
-        if jieguo['F']['count'] >= jieguo['T']['count']:
-            personality_type += 'F'
-        else:
-            personality_type += 'T'
-            
-        if jieguo['P']['count'] >= jieguo['J']['count']:
-            personality_type += 'P'
-        else:
-            personality_type += 'J'
+        story.append(Spacer(1, 10*mm))
         
-        # 获取类型详情
-        type_info = CepingMbtiLeixing.query.filter_by(name=personality_type).first()
+        # 目录表格样式
+        toc_style = TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), self.bold_font),
+            ('FONTSIZE', (0, 0), (-1, -1), 16),
+            ('TEXTCOLOR', (0, 0), (0, -1), self.colors['title_blue']),
+            ('TEXTCOLOR', (1, 0), (1, -1), self.colors['light_blue']),
+            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+            ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 15),
+        ])
         
-        # 创建PDF文件
-        filename = f"MBTI_{self._ensure_text_safe(student.name)}_{int(time.time())}.pdf"
+        # 创建目录表格
+        toc_table = Table(toc_items, colWidths=[450, 40])
+        toc_table.setStyle(toc_style)
+        story.append(toc_table)
+    
+    def _add_star_icon(self, story):
+        """添加星形图标"""
+        if os.path.exists(self.star_path):
+            story.append(Image(self.star_path, width=4*mm, height=4*mm))
+    
+    def _add_section_title(self, story, title):
+        """添加章节标题"""
+        story.append(Paragraph(title, self.styles['Blue_Title']))
+        story.append(Spacer(1, 10*mm))
+    
+    def _get_standard_doc(self, filename):
+        """获取标准文档对象"""
         filepath = os.path.join(self.output_dir, filename)
         
         # 创建文档
@@ -321,43 +369,18 @@ class PdfService:
             bottomMargin=20*mm
         )
         
-        # 获取logo路径
-        logo_path = os.path.join(self.resources_dir, 'logo.png')
+        return doc, filepath
+    
+    def _create_page_callbacks(self, title):
+        """创建页面回调函数"""
         
-        # 构建PDF内容
-        story = []
-        
-        # 添加封面
-        self._add_mbti_cover(story, student, answer, logo_path)
-        story.append(PageBreak())
-        
-        # 添加前言
-        self._add_mbti_preface(story)
-        story.append(PageBreak())
-        
-        # 添加目录
-        self._add_mbti_toc(story)
-        story.append(PageBreak())
-        
-        # 添加测评介绍
-        self._add_mbti_introduction(story)
-        story.append(PageBreak())
-        
-        # 添加测评结果
-        self._add_mbti_results(story, jieguo, personality_type, type_info)
-        story.append(PageBreak())
-        
-        # 添加温馨提示
-        self._add_mbti_tips(story)
-        
-        # 自定义页面回调函数
         def first_page_callback(canvas, doc):
-            self._draw_header(canvas, doc, "性格能力测评", logo_path, display_page_num=False)
+            self._draw_header(canvas, doc, title, display_page_num=False)
         
         def later_pages_callback(canvas, doc):
             # 目录页面也不显示页码
             if doc.page <= 3:  # 封面、前言、目录页不显示页码
-                self._draw_header(canvas, doc, "性格能力测评", logo_path, display_page_num=False)
+                self._draw_header(canvas, doc, title, display_page_num=False)
             else:
                 # 从第4页开始显示页码(显示的页码从1开始)
                 current_page = doc.page - 3
@@ -366,87 +389,116 @@ class PdfService:
                 # 设置页码
                 doc.page = current_page
                 # 绘制页眉和页码
-                self._draw_header(canvas, doc, "性格能力测评", logo_path, display_page_num=True)
+                self._draw_header(canvas, doc, title, display_page_num=True)
                 # 恢复原始页码，避免影响后续页面
                 doc.page = original_page
         
-        # 构建PDF
-        doc.build(
-            story,
-            onFirstPage=first_page_callback,
-            onLaterPages=later_pages_callback
-        )
-        
-        return filepath
+        return first_page_callback, later_pages_callback
+
+
+class MbtiReportService(BasePdfService):
+    """MBTI测评报告生成服务"""
     
-    def _add_mbti_cover(self, story, student, answer, logo_path):
-        """添加MBTI报告封面"""
-        # 标题
-        title = '性格能力测评'
-        subtitle = 'Personality and ability evaluation report'
+    def __init__(self):
+        super().__init__()
+        # 特定于MBTI报告的初始化
+    
+    def generate_report(self, answer, student):
+        """生成MBTI测评报告"""
+        from app.models.ceping_mbti_leixing import CepingMbtiLeixing
         
-        # 生成标题
-        story.append(Paragraph(title, self.styles['Cover_Title']))
-        story.append(Spacer(1, 10*mm))
+        try:
+            # 解析结果
+            jieguo = json.loads(answer.jieguo)
+            
+            # 计算人格类型
+            personality_type = self._calculate_personality_type(jieguo)
+            
+            # 获取类型详情
+            type_info = CepingMbtiLeixing.query.filter_by(name=personality_type).first()
+            
+            # 创建PDF文件名
+            filename = f"MBTI_{self._ensure_text_safe(student.name)}_{int(time.time())}.pdf"
+            doc, filepath = self._get_standard_doc(filename)
+            
+            # 构建PDF内容
+            story = []
+            
+            # 添加封面
+            self._add_cover(story, student, answer)
+            story.append(PageBreak())
+            
+            # 添加前言
+            self._add_preface(story)
+            story.append(PageBreak())
+            
+            # 添加目录
+            self._add_toc(story)
+            story.append(PageBreak())
+            
+            # 添加测评介绍
+            self._add_introduction(story)
+            story.append(PageBreak())
+            
+            # 添加测评结果
+            self._add_results(story, jieguo, personality_type, type_info)
+            story.append(PageBreak())
+            
+            # 添加温馨提示
+            self._add_tips(story)
+            
+            # 设置页面回调
+            first_page, later_pages = self._create_page_callbacks("性格能力测评")
+            
+            # 构建PDF
+            doc.build(story, onFirstPage=first_page, onLaterPages=later_pages)
+            
+            return filepath
+            
+        except Exception as e:
+            current_app.logger.error(f"生成MBTI报告时出错: {str(e)}")
+            current_app.logger.error(traceback.format_exc())
+            raise
+    
+    def _calculate_personality_type(self, jieguo):
+        """计算MBTI人格类型"""
+        personality_type = ""
         
-        # 添加分隔图片
-        separator_path = os.path.join(self.resources_dir, 'stitle_bg.png')
-        if os.path.exists(separator_path):
-            story.append(Image(separator_path, width=140*mm, height=10*mm))
-        
-        # 生成副标题
-        story.append(Paragraph(subtitle, self.styles['Cover_Subtitle']))
-        story.append(Spacer(1, 80*mm))  # 减少间距，为表格腾出空间
-        
-        # 学生信息表格
-        student_data = [
-            ['姓       名:', student.name],
-            ['学       校:', student.school or ''],
-            ['报告时间:', time.strftime('%Y-%m-%d', time.localtime(answer.addtime))]
+        # 计算各维度
+        dimensions = [
+            ('I', 'E'),  # 内向/外向
+            ('N', 'S'),  # 直觉/感觉
+            ('F', 'T'),  # 情感/思考
+            ('P', 'J')   # 感知/判断
         ]
         
-        # 表格样式
-        table_style = TableStyle([
-            ('FONTNAME', (0, 0), (-1, -1), self.default_font),
-            ('FONTSIZE', (0, 0), (-1, -1), 16),
-            ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
-            ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
-            ('ALIGN', (1, 0), (1, -1), 'LEFT'),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('LEFTPADDING', (0, 0), (-1, -1), 5),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 5),
-            ('TOPPADDING', (0, 0), (-1, -1), 12),  # 增加上内边距
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 12),  # 增加下内边距
-        ])
-        
-        # 添加居中效果
-        table_width = 320  # 表格总宽度
-        page_width = A4[0] - 20*mm  # 页面宽度减去左右边距
-        
-        # 创建表格并设置样式
-        student_table = Table(student_data, colWidths=[100, 220])
-        student_table.setStyle(table_style)
-        
-        # 使用嵌套表格实现居中对齐
-        outer_data = [[student_table]]
-        outer_table = Table(outer_data, colWidths=[page_width])
-        outer_table.setStyle(TableStyle([
-            ('ALIGN', (0, 0), (0, 0), 'CENTER'),
-            ('VALIGN', (0, 0), (0, 0), 'MIDDLE'),
-        ]))
-        
-        story.append(outer_table)
+        for dim1, dim2 in dimensions:
+            if jieguo[dim1]['count'] >= jieguo[dim2]['count']:
+                personality_type += dim1
+            else:
+                personality_type += dim2
+                
+        return personality_type
     
-    def _add_mbti_preface(self, story):
+    def _add_cover(self, story, student, answer):
+        """添加MBTI报告封面"""
+        self._add_common_cover(
+            story, 
+            '性格能力测评', 
+            'Personality and ability evaluation report',
+            student,
+            answer
+        )
+    
+    def _add_preface(self, story):
         """添加MBTI报告前言"""
         # 前言标题
         story.append(Paragraph('前言', self.styles['Title']))
         story.append(Spacer(1, 5*mm))
         
         # 添加下划线图片
-        line_path = os.path.join(self.resources_dir, 'xian.png')
-        if os.path.exists(line_path):
-            story.append(Image(line_path, width=20*mm, height=2*mm))
+        if os.path.exists(self.line_path):
+            story.append(Image(self.line_path, width=20*mm, height=2*mm))
         
         story.append(Spacer(1, 5*mm))
         
@@ -464,57 +516,22 @@ class PdfService:
             story.append(Spacer(1, 5*mm))
         
         # 添加版权声明
-        story.append(Spacer(1, 30*mm))
-        copyright_text = """
-        <font color="red">*</font>版权声明<br/>
-        本报告内容属于个人隐私，请注意保密<br/>
-        本报告必须在专业咨询师的指导下使用<br/>
-        本报告的所有权都受到版权保护，未经授权不得擅自转载、挪用、复制、刊印等，不得用于商业或非商业用途
-        """
-        story.append(Paragraph(copyright_text, self.styles['Copyright']))
+        self._add_common_copyright(story)
     
-    def _add_mbti_toc(self, story):
+    def _add_toc(self, story):
         """添加MBTI报告目录"""
-        story.append(Paragraph('目录 Catalog', self.styles['Title']))
-        story.append(Spacer(1, 5*mm))
-        
-        # 添加下划线图片
-        line_path = os.path.join(self.resources_dir, 'xian.png')
-        if os.path.exists(line_path):
-            story.append(Image(line_path, width=54*mm, height=2*mm))
-        
-        story.append(Spacer(1, 10*mm))
-        
-        # 目录内容
-        toc_data = [
+        toc_items = [
             ['Part.1 性格能力测评体系介绍', '1'],
             ['Part.2 性格能力测评结果分析', '2'],
             ['Part.3 温馨提示', '4']
         ]
         
-        # 目录表格样式
-        toc_style = TableStyle([
-            ('FONTNAME', (0, 0), (-1, -1), self.bold_font),
-            ('FONTSIZE', (0, 0), (-1, -1), 16),
-            ('TEXTCOLOR', (0, 0), (0, 0), colors.HexColor('#14a9df')),
-            ('TEXTCOLOR', (0, 1), (0, -1), colors.HexColor('#1ca4b6')),
-            ('TEXTCOLOR', (1, 0), (1, -1), colors.HexColor('#1ca4b6')),
-            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
-            ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 15),
-        ])
-        
-        # 创建目录表格
-        toc_table = Table(toc_data, colWidths=[450, 40])
-        toc_table.setStyle(toc_style)
-        story.append(toc_table)
+        self._add_common_toc(story, toc_items)
     
-    def _add_mbti_introduction(self, story):
+    def _add_introduction(self, story):
         """添加MBTI测评体系介绍"""
         # 章节标题背景
-        story.append(Paragraph('Part.1 性格能力测评体系介绍', self.styles['Blue_Title']))
-        story.append(Spacer(1, 10*mm))
+        self._add_section_title(story, 'Part.1 性格能力测评体系介绍')
         
         # 介绍文本
         intro_texts = [
@@ -536,13 +553,7 @@ class PdfService:
         ]
         
         for dim in dimensions:
-            dim_style = ParagraphStyle(
-                'Dimension',
-                parent=self.styles['Normal'],
-                leftIndent=32,
-                firstLineIndent=0
-            )
-            story.append(Paragraph(dim, dim_style))
+            story.append(Paragraph(dim, self.styles['List_Item']))
             story.append(Spacer(1, 3*mm))
         
         story.append(Spacer(1, 5*mm))
@@ -551,102 +562,150 @@ class PdfService:
         conclusion = """性格能力评估系统可以帮助我们认清自己，但是并不剥夺我们认知的自由，把结论强加于人；MBTI可以有效地评估我们的性格类型；引导我们建立自信，信任并理解他人；进而在职业定位和发展、人际关系等领域为我们提供帮助。"""
         story.append(Paragraph(conclusion, self.styles['Normal']))
     
-    def _add_mbti_results(self, story, jieguo, personality_type, type_info):
+    def _add_results(self, story, jieguo, personality_type, type_info):
         """添加MBTI测评结果分析"""
         # 章节标题
-        story.append(Paragraph('Part.2 性格能力测评结果分析', self.styles['Blue_Title']))
-        story.append(Spacer(1, 10*mm))
+        self._add_section_title(story, 'Part.2 性格能力测评结果分析')
         
-        # 星号图标
-        star_path = os.path.join(self.resources_dir, 'xingxing.png')
-        if os.path.exists(star_path):
-            story.append(Image(star_path, width=4*mm, height=4*mm))
+        # 添加星号图标
+        self._add_star_icon(story)
         
         # 小标题
         subtitle = f"""职业性格分析 根据您测评结果进行分析，您的职业性格结果如下所示："""
-        subtitle_style = ParagraphStyle(
-            'Subtitle',
-            parent=self.styles['Normal'],
-            firstLineIndent=0,
-            leftIndent=15
-        )
-        story.append(Paragraph(subtitle, subtitle_style))
-        story.append(Spacer(1, 10*mm))
+        story.append(Paragraph(subtitle, self.styles['List_Item']))
+        story.append(Spacer(1, 5*mm))  # 减小标题后的间距
         
-        # 创建维度得分表格
+        # 维度对比数据
         dimensions = [
-            {'key': 'E', 'label': '外向(E)', 'opposing_key': 'I', 'opposing_label': '内向(I)'},
-            {'key': 'S', 'label': '感觉(S)', 'opposing_key': 'N', 'opposing_label': '直觉(N)'},
-            {'key': 'T', 'label': '思考(T)', 'opposing_key': 'F', 'opposing_label': '情感(F)'},
-            {'key': 'J', 'label': '判断(J)', 'opposing_key': 'P', 'opposing_label': '知觉(P)'}
+            {'left_key': 'E', 'left_label': '外向(E)', 'right_key': 'I', 'right_label': '内向(I)'},
+            {'left_key': 'S', 'left_label': '感觉(S)', 'right_key': 'N', 'right_label': '直觉(N)'},
+            {'left_key': 'T', 'left_label': '思考(T)', 'right_key': 'F', 'right_label': '情感(F)'},
+            {'left_key': 'J', 'left_label': '判断(J)', 'right_key': 'P', 'right_label': '知觉(P)'}
         ]
         
         # 创建表格数据
-        dim_data = []
+        bar_data = []
+        
+        # 为每个维度创建进度条行
         for dim in dimensions:
-            key = dim['key']
-            opposing_key = dim['opposing_key']
+            left_key = dim['left_key']
+            right_key = dim['right_key']
             
-            # 获取两边分数
-            score1 = jieguo[key]['count']
-            score2 = jieguo[opposing_key]['count']
-            total = score1 + score2
+            # 获取分数
+            left_score = jieguo[left_key]['count']
+            right_score = jieguo[right_key]['count']
             
-            # 计算比例，避免除以零
-            if total > 0:
-                percent1 = int((score1 / total) * 100)
-            else:
-                percent1 = 50
-            percent2 = 100 - percent1
-            
-            # 判断哪边的分数更高，用粗体标记
-            left_style = f"<b>{score1}</b>" if score1 >= score2 else str(score1)
-            right_style = f"<b>{score2}</b>" if score2 >= score1 else str(score2)
-            
-            # 添加行数据
+            # 创建行数据
             row = [
-                dim['label'], 
-                Paragraph(left_style, self.styles['Normal']),
-                # 这里应该有进度条，但reportlab不直接支持，我们将用表格实现
-                dim['opposing_label'],
-                Paragraph(right_style, self.styles['Normal'])
+                dim['left_label'],  # 左侧标签
+                str(left_score),    # 左侧分数
+                '',                 # 左侧进度条
+                '',                 # 右侧进度条
+                str(right_score),   # 右侧分数
+                dim['right_label']  # 右侧标签
             ]
-            dim_data.append(row)
+            bar_data.append(row)
         
         # 创建表格
-        col_widths = [80, 40, 280, 80, 40]
-        dim_table = Table(dim_data, colWidths=col_widths)
+        total_width = 310  # 进度条总宽度
         
-        # 设置表格样式
-        dim_table.setStyle(TableStyle([
-            ('FONTNAME', (0, 0), (-1, -1), self.default_font),
-            ('FONTSIZE', (0, 0), (-1, -1), 14),
-            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
-            ('ALIGN', (1, 0), (1, -1), 'CENTER'),
-            ('ALIGN', (3, 0), (3, -1), 'RIGHT'),
-            ('ALIGN', (4, 0), (4, -1), 'CENTER'),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 13),
-        ]))
+        # 动态计算每行的列宽
+        final_col_widths = []
+        for dim in dimensions:
+            left_key = dim['left_key']
+            right_key = dim['right_key']
+            
+            # 获取分数
+            left_score = jieguo[left_key]['count']
+            right_score = jieguo[right_key]['count']
+            total_score = left_score + right_score
+            
+            # 计算比例
+            if total_score > 0:
+                left_ratio = left_score / total_score
+                right_ratio = right_score / total_score
+            else:
+                left_ratio = right_ratio = 0.5
+            
+            # 计算进度条宽度（保留一些最小宽度）
+            left_bar_width = max(20, int(left_ratio * total_width))
+            right_bar_width = max(20, int(right_ratio * total_width))
+            
+            # 添加一行的列宽
+            row_col_widths = [70, 30, left_bar_width, right_bar_width, 30, 70]
+            final_col_widths.append(row_col_widths)
         
-        story.append(dim_table)
-        story.append(Spacer(1, 10*mm))
+        # 创建多个表格，每行一个表格
+        for i, (row, widths) in enumerate(zip(bar_data, final_col_widths)):
+            row_table = Table([row], colWidths=widths)
+            
+            # 获取维度信息
+            dim = dimensions[i]
+            left_key = dim['left_key']
+            right_key = dim['right_key']
+            left_score = jieguo[left_key]['count']
+            right_score = jieguo[right_key]['count']
+            
+            # 设置表格样式
+            row_style = TableStyle([
+                ('FONTNAME', (0, 0), (-1, 0), self.default_font),
+                ('FONTSIZE', (0, 0), (0, 0), 13),  # 左标签略小
+                ('FONTSIZE', (5, 0), (5, 0), 13),  # 右标签略小
+                ('FONTSIZE', (1, 0), (1, 0), 14),  # 左分数稍大
+                ('FONTSIZE', (4, 0), (4, 0), 14),  # 右分数稍大
+                ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+                ('ALIGN', (1, 0), (4, 0), 'CENTER'),
+                ('ALIGN', (5, 0), (5, 0), 'RIGHT'),
+                ('VALIGN', (0, 0), (-1, 0), 'MIDDLE'),
+                # 减小条形高度
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 3),
+                ('TOPPADDING', (0, 0), (-1, 0), 3),
+                
+                # 设置左侧进度条背景色
+                ('BACKGROUND', (2, 0), (2, 0), colors.HexColor('#3498db')),  # 蓝色
+                
+                # 设置右侧进度条背景色
+                ('BACKGROUND', (3, 0), (3, 0), colors.HexColor('#f39c12')),  # 橙色
+                
+                # 设置分数文本颜色为白色
+                ('TEXTCOLOR', (1, 0), (1, 0), colors.black),
+                ('TEXTCOLOR', (4, 0), (4, 0), colors.black),
+                
+            ])
+            
+            # 加粗显示较高分数
+            if left_score > right_score:
+                row_style.add('FONTNAME', (1, 0), (1, 0), self.bold_font)
+                row_style.add('FONTNAME', (0, 0), (0, 0), self.bold_font)  # 加粗左侧标签
+            elif right_score > left_score:
+                row_style.add('FONTNAME', (4, 0), (4, 0), self.bold_font)
+                row_style.add('FONTNAME', (5, 0), (5, 0), self.bold_font)  # 加粗右侧标签
+            
+            # 应用样式
+            row_table.setStyle(row_style)
+            
+            # 添加到故事
+            story.append(row_table)
+            story.append(Spacer(1, 8*mm))  # 增加行间距，从1mm改为8mm
         
-# 创建得分汇总表格
+        story.append(Spacer(1, 5*mm))
+        
+        # 以下代码保持不变...
+        # 创建得分汇总表格
         score_data = [
             ['性格维度', '得分', '倾向'],
             ['我们如何与世界相互作用', 
-             max(jieguo['E']['count'], jieguo['I']['count']), 
-             '外向' if jieguo['E']['count'] > jieguo['I']['count'] else '内向'],
+            max(jieguo['E']['count'], jieguo['I']['count']), 
+            '外向' if jieguo['E']['count'] > jieguo['I']['count'] else '内向'],
             ['我们关注哪些事物', 
-             max(jieguo['S']['count'], jieguo['N']['count']), 
-             '感觉' if jieguo['S']['count'] > jieguo['N']['count'] else '直觉'],
+            max(jieguo['S']['count'], jieguo['N']['count']), 
+            '感觉' if jieguo['S']['count'] > jieguo['N']['count'] else '直觉'],
             ['我们如何思考问题', 
-             max(jieguo['T']['count'], jieguo['F']['count']), 
-             '思考' if jieguo['T']['count'] > jieguo['F']['count'] else '情感'],
+            max(jieguo['T']['count'], jieguo['F']['count']), 
+            '思考' if jieguo['T']['count'] > jieguo['F']['count'] else '情感'],
             ['我们如何做事', 
-             max(jieguo['J']['count'], jieguo['P']['count']), 
-             '判断' if jieguo['J']['count'] > jieguo['P']['count'] else '知觉']
+            max(jieguo['J']['count'], jieguo['P']['count']), 
+            '判断' if jieguo['J']['count'] > jieguo['P']['count'] else '知觉']
         ]
         
         # 创建表格
@@ -657,14 +716,14 @@ class PdfService:
             ('FONTNAME', (0, 0), (-1, -1), self.default_font),
             ('FONTNAME', (0, 0), (-1, 0), self.bold_font),
             ('FONTSIZE', (0, 0), (-1, -1), 12),
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#235869')),
+            ('BACKGROUND', (0, 0), (-1, 0), self.colors['title_dark']),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('GRID', (0, 0), (-1, -1), 1, colors.black),
             ('LINEBELOW', (0, 0), (-1, 0), 2, colors.black),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
-            ('TOPPADDING', (0, 0), (-1, -1), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),  # 减小内边距
+            ('TOPPADDING', (0, 0), (-1, -1), 8),     # 减小内边距
         ]))
         
         story.append(score_table)
@@ -707,17 +766,14 @@ class PdfService:
             story.append(Paragraph('典型职业', self.styles['Heading3']))
             typical_job_text = self._ensure_text_safe(type_info.dianxing).replace('\n', '<br/>')
             story.append(Paragraph(typical_job_text, self.styles['Normal']))
-    
-    def _add_mbti_tips(self, story):
+
+    def _add_tips(self, story):
         """添加MBTI测评温馨提示"""
         # 章节标题
-        story.append(Paragraph('Part.3 温馨提示', self.styles['Blue_Title']))
-        story.append(Spacer(1, 10*mm))
+        self._add_section_title(story, 'Part.3 温馨提示')
         
-        # 星号图标
-        star_path = os.path.join(self.resources_dir, 'xingxing.png')
-        if os.path.exists(star_path):
-            story.append(Image(star_path, width=4*mm, height=4*mm))
+        # 添加星号图标
+        self._add_star_icon(story)
         
         # 温馨提示标题
         story.append(Paragraph('温馨提示', self.styles['Heading3']))
@@ -748,74 +804,22 @@ class PdfService:
         ]
         
         for note in notes:
-            note_style = ParagraphStyle(
-                'Note',
-                parent=self.styles['Normal'],
-                firstLineIndent=0,
-                leftIndent=15
-            )
-            story.append(Paragraph(note, note_style))
+            story.append(Paragraph(note, self.styles['List_Item']))
             story.append(Spacer(1, 3*mm))
         
         story.append(Spacer(1, 5*mm))
         story.append(Paragraph('您可以在适当的时候选择重新进行测试。', self.styles['Normal']))
         story.append(Paragraph('希望性格能力测评报告能为您的选择提供有价值的参考。', self.styles['Normal']))
+
+
+class JobReportService(BasePdfService):
+    """职业兴趣测评报告生成服务"""
     
-    def _diagnose_job_data(self, answer, timu_dict):
-        """诊断职业兴趣测评数据，帮助排查问题"""
-        try:
-            # 记录答案对象基本信息
-            current_app.logger.info(f"答案ID: {answer.id}, 结果类型: {answer.jieguo}")
-            
-            # 解析答案数据
-            answer_data = json.loads(answer.answer)
-            current_app.logger.info(f"答案数据长度: {len(answer_data)}")
-            
-            # 分析前5个答案（如果有的话）
-            sample_answers = dict(list(answer_data.items())[:5])
-            current_app.logger.info(f"答案数据样本: {sample_answers}")
-            
-            # 检查题目字典
-            current_app.logger.info(f"题目字典长度: {len(timu_dict)}")
-            
-            # 分析前5个题目信息（如果有的话）
-            sample_timu = dict(list(timu_dict.items())[:5])
-            current_app.logger.info(f"题目数据样本: {sample_timu}")
-            
-            # 统计答案类型分布
-            answer_types = {}
-            for value in answer_data.values():
-                if value not in answer_types:
-                    answer_types[value] = 0
-                answer_types[value] += 1
-            current_app.logger.info(f"答案类型分布: {answer_types}")
-            
-            # 检查答案中的题目ID是否在题目字典中存在
-            missing_timu = []
-            for question_id in answer_data.keys():
-                if question_id not in timu_dict:
-                    missing_timu.append(question_id)
-            
-            if missing_timu:
-                current_app.logger.warning(f"有{len(missing_timu)}个题目ID在题目字典中不存在: {missing_timu[:5]}")
-            else:
-                current_app.logger.info("所有题目ID在题目字典中都存在")
-            
-            # 检查wid值
-            wid_counts = {}
-            for timu_info in timu_dict.values():
-                wid = timu_info.get("wid", "")
-                if wid not in wid_counts:
-                    wid_counts[wid] = 0
-                wid_counts[wid] += 1
-            
-            current_app.logger.info(f"题目中的wid分布: {wid_counts}")
-            
-        except Exception as e:
-            current_app.logger.error(f"诊断数据时出错: {str(e)}")
+    def __init__(self):
+        super().__init__()
+        # 特定于职业兴趣报告的初始化
     
-    # 职业兴趣测评报告生成方法
-    def generate_job_report(self, answer, student):
+    def generate_report(self, answer, student):
         """生成职业兴趣测评报告"""
         from app.models.ceping_job_leixing import CepingJobLeixing
         from app.models.ceping_job_zhuanye import CepingJobZhuanye
@@ -829,34 +833,7 @@ class PdfService:
             timu = CepingJobTimu.query.order_by(CepingJobTimu.tid).all()
             
             # 计算结果 - 初始化所有维度的计数为0
-            count = {
-                "S": {'count': 0, 'color': 'green'},
-                "R": {'count': 0, 'color': 'green'},
-                "C": {'count': 0, 'color': 'green'},
-                "E": {'count': 0, 'color': 'green'},
-                "I": {'count': 0, 'color': 'green'},
-                "A": {'count': 0, 'color': 'green'}
-            }
-            
-            # 使用题号(tid)作为匹配键 - 这是根据日志确认有效的匹配方式
-            for q in timu:
-                tid_key = str(q.tid)
-                
-                # 检查该题目是否在答案中且选择了A选项
-                if tid_key in answer_data and answer_data[tid_key] == "A":
-                    if q.wid in count:
-                        count[q.wid]['count'] += 1
-            
-            # 对不在结果类型中的类型进行处理 (参考PHP代码)
-            for key in count:
-                # 检查当前类型是否在结果字符串中
-                if key in answer.jieguo:
-                    count[key]['color'] = "orange"
-                else:
-                    # 如果不在结果中且分数大于0，则减1（与PHP代码一致）
-                    if count[key]['count'] > 0:
-                        count[key]['count'] -= 1
-                    count[key]['color'] = "green"
+            count = self._calculate_job_scores(answer_data, timu, answer.jieguo)
             
             # 获取类型详情
             type_info = CepingJobLeixing.query.filter_by(title=answer.jieguo).first()
@@ -864,152 +841,102 @@ class PdfService:
             # 获取推荐专业
             recommended_majors = CepingJobZhuanye.query.filter_by(title=answer.jieguo).all()
             
-            # 创建PDF文件
+            # 创建PDF文件名
             filename = f"职业兴趣_{self._ensure_text_safe(student.name)}_{int(time.time())}.pdf"
-            filepath = os.path.join(self.output_dir, filename)
-            
-            # 创建文档
-            doc = SimpleDocTemplate(
-                filepath,
-                pagesize=A4,
-                leftMargin=10*mm,
-                rightMargin=10*mm,
-                topMargin=20*mm,
-                bottomMargin=20*mm
-            )
-            
-            # 获取logo路径
-            logo_path = os.path.join(self.resources_dir, 'logo.png')
+            doc, filepath = self._get_standard_doc(filename)
             
             # 构建PDF内容
             story = []
             
             # 添加封面
-            self._add_job_cover(story, student, answer, logo_path)
+            self._add_cover(story, student, answer)
             story.append(PageBreak())
             
             # 添加前言
-            self._add_job_preface(story)
+            self._add_preface(story)
             story.append(PageBreak())
             
             # 添加目录
-            self._add_job_toc(story)
+            self._add_toc(story)
             story.append(PageBreak())
             
             # 添加测评介绍
-            self._add_job_introduction(story)
+            self._add_introduction(story)
             story.append(PageBreak())
             
             # 添加测评结果
-            self._add_job_results(story, count, answer.jieguo, type_info, recommended_majors)
+            self._add_results(story, count, answer.jieguo, type_info, recommended_majors)
             story.append(PageBreak())
             
             # 添加温馨提示
-            self._add_job_tips(story)
+            self._add_tips(story)
             
-            # 自定义页面回调函数
-            def first_page_callback(canvas, doc):
-                self._draw_header(canvas, doc, "职业兴趣测评", logo_path, display_page_num=False)
-            
-            def later_pages_callback(canvas, doc):
-                # 目录页面也不显示页码
-                if doc.page <= 3:  # 封面、前言、目录页不显示页码
-                    self._draw_header(canvas, doc, "职业兴趣测评", logo_path, display_page_num=False)
-                else:
-                    # 从第4页开始显示页码(显示的页码从1开始)
-                    current_page = doc.page - 3
-                    # 保存原始页码
-                    original_page = doc.page
-                    # 设置页码
-                    doc.page = current_page
-                    # 绘制页眉和页码
-                    self._draw_header(canvas, doc, "职业兴趣测评", logo_path, display_page_num=True)
-                    # 恢复原始页码，避免影响后续页面
-                    doc.page = original_page
+            # 设置页面回调
+            first_page, later_pages = self._create_page_callbacks("职业兴趣测评")
             
             # 构建PDF
-            doc.build(
-                story,
-                onFirstPage=first_page_callback,
-                onLaterPages=later_pages_callback
-            )
+            doc.build(story, onFirstPage=first_page, onLaterPages=later_pages)
             
             return filepath
             
         except Exception as e:
-            current_app.logger.error(f"生成职业兴趣报告出错: {str(e)}")
-            import traceback
+            current_app.logger.error(f"生成职业兴趣报告时出错: {str(e)}")
             current_app.logger.error(traceback.format_exc())
-            raise e
+            raise
     
-    def _add_job_cover(self, story, student, answer, logo_path):
+    def _calculate_job_scores(self, answer_data, timu, result_type):
+        """计算职业兴趣得分"""
+        # 初始化所有维度的计数
+        count = {
+            "S": {'count': 0, 'color': 'green'},
+            "R": {'count': 0, 'color': 'green'},
+            "C": {'count': 0, 'color': 'green'},
+            "E": {'count': 0, 'color': 'green'},
+            "I": {'count': 0, 'color': 'green'},
+            "A": {'count': 0, 'color': 'green'}
+        }
+        
+        # 创建题目ID到维度的映射
+        timu_map = {str(q.tid): q.wid for q in timu}
+        
+        # 计算每个维度的得分
+        for tid, answer_choice in answer_data.items():
+            wid = timu_map.get(tid)
+            if wid and wid in count and answer_choice == "A":
+                count[wid]['count'] += 1
+        
+        # 对不在结果类型中的类型进行处理 (参考原代码逻辑)
+        for key in count:
+            # 检查当前类型是否在结果字符串中
+            if key in result_type:
+                count[key]['color'] = "orange"
+            else:
+                # 如果不在结果中且分数大于0，则减1
+                if count[key]['count'] > 0:
+                    count[key]['count'] -= 1
+                count[key]['color'] = "green"
+        
+        return count
+    
+    def _add_cover(self, story, student, answer):
         """添加职业兴趣报告封面"""
-        # 标题
-        title = '职业兴趣测评报告'
-        subtitle = 'Professional Interest Assessment Report'
-        
-        # 生成标题
-        story.append(Paragraph(title, self.styles['Cover_Title']))
-        story.append(Spacer(1, 10*mm))
-        
-        # 添加分隔图片
-        separator_path = os.path.join(self.resources_dir, 'stitle_bg.png')
-        if os.path.exists(separator_path):
-            story.append(Image(separator_path, width=140*mm, height=10*mm))
-        
-        # 生成副标题
-        story.append(Paragraph(subtitle, self.styles['Cover_Subtitle']))
-        story.append(Spacer(1, 80*mm))  # 减少间距，为表格腾出空间
-        
-        # 学生信息表格
-        student_data = [
-            ['姓       名:', student.name],
-            ['学       校:', student.school or ''],
-            ['报告时间:', time.strftime('%Y-%m-%d', time.localtime(answer.addtime))]
-        ]
-        
-        # 表格样式
-        table_style = TableStyle([
-            ('FONTNAME', (0, 0), (-1, -1), self.default_font),
-            ('FONTSIZE', (0, 0), (-1, -1), 16),
-            ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
-            ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
-            ('ALIGN', (1, 0), (1, -1), 'LEFT'),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('LEFTPADDING', (0, 0), (-1, -1), 5),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 5),
-            ('TOPPADDING', (0, 0), (-1, -1), 12),  # 增加上内边距
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 12),  # 增加下内边距
-        ])
-        
-        # 添加居中效果
-        table_width = 320  # 表格总宽度
-        page_width = A4[0] - 20*mm  # 页面宽度减去左右边距
-        
-        # 创建表格并设置样式
-        student_table = Table(student_data, colWidths=[100, 220])
-        student_table.setStyle(table_style)
-        
-        # 使用嵌套表格实现居中对齐
-        outer_data = [[student_table]]
-        outer_table = Table(outer_data, colWidths=[page_width])
-        outer_table.setStyle(TableStyle([
-            ('ALIGN', (0, 0), (0, 0), 'CENTER'),
-            ('VALIGN', (0, 0), (0, 0), 'MIDDLE'),
-        ]))
-        
-        story.append(outer_table)
+        self._add_common_cover(
+            story, 
+            '职业兴趣测评报告', 
+            'Professional Interest Assessment Report',
+            student,
+            answer
+        )
     
-    def _add_job_preface(self, story):
+    def _add_preface(self, story):
         """添加职业兴趣报告前言"""
         # 前言标题
         story.append(Paragraph('前言', self.styles['Title']))
         story.append(Spacer(1, 5*mm))
         
         # 添加下划线图片
-        line_path = os.path.join(self.resources_dir, 'xian.png')
-        if os.path.exists(line_path):
-            story.append(Image(line_path, width=20*mm, height=2*mm))
+        if os.path.exists(self.line_path):
+            story.append(Image(self.line_path, width=20*mm, height=2*mm))
         
         story.append(Spacer(1, 5*mm))
         
@@ -1022,57 +949,22 @@ class PdfService:
         story.append(Paragraph(second_paragraph, self.styles['Normal']))
         
         # 添加版权声明
-        story.append(Spacer(1, 30*mm))
-        copyright_text = """
-        <font color="red">*</font>版权声明<br/>
-        本报告内容属于个人隐私，请注意保密<br/>
-        本报告必须在专业咨询师的指导下使用<br/>
-        本报告的所有权都受到版权保护，未经授权不得擅自转载、挪用、复制、刊印等，不得用于商业或非商业用途
-        """
-        story.append(Paragraph(copyright_text, self.styles['Copyright']))
+        self._add_common_copyright(story)
     
-    def _add_job_toc(self, story):
+    def _add_toc(self, story):
         """添加职业兴趣报告目录"""
-        story.append(Paragraph('目录 Catalog', self.styles['Title']))
-        story.append(Spacer(1, 5*mm))
-        
-        # 添加下划线图片
-        line_path = os.path.join(self.resources_dir, 'xian.png')
-        if os.path.exists(line_path):
-            story.append(Image(line_path, width=54*mm, height=2*mm))
-        
-        story.append(Spacer(1, 10*mm))
-        
-        # 目录内容
-        toc_data = [
+        toc_items = [
             ['Part.1 职业兴趣测评体系介绍', '1'],
             ['Part.2 职业兴趣测评结果分析', '3'],
             ['Part.3 温馨提示', '6']
         ]
         
-        # 目录表格样式
-        toc_style = TableStyle([
-            ('FONTNAME', (0, 0), (-1, -1), self.bold_font),
-            ('FONTSIZE', (0, 0), (-1, -1), 16),
-            ('TEXTCOLOR', (0, 0), (0, 0), colors.HexColor('#14a9df')),
-            ('TEXTCOLOR', (0, 1), (0, -1), colors.HexColor('#1ca4b6')),
-            ('TEXTCOLOR', (1, 0), (1, -1), colors.HexColor('#1ca4b6')),
-            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
-            ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 15),
-        ])
-        
-        # 创建目录表格
-        toc_table = Table(toc_data, colWidths=[450, 40])
-        toc_table.setStyle(toc_style)
-        story.append(toc_table)
+        self._add_common_toc(story, toc_items)
     
-    def _add_job_introduction(self, story):
+    def _add_introduction(self, story):
         """添加职业兴趣测评体系介绍"""
         # 章节标题背景
-        story.append(Paragraph('Part.1 职业兴趣测评体系介绍', self.styles['Blue_Title']))
-        story.append(Spacer(1, 10*mm))
+        self._add_section_title(story, 'Part.1 职业兴趣测评体系介绍')
         
         # 介绍文本
         intro_text = """职业兴趣测评是以美国心理学家Holland的职业兴趣理论为基础，同时在题目内容设计、常模选取方面结合了考生的实际情况而开发的专业测评工具。通过该系统，可以帮助测试者相对精确地了解自身的个体特点和职业特点之间的匹配关系，同时为测评者在进行职业规划时，提供客观的参考依据分析你的兴趣爱好，推荐你感兴趣和适合的职业作为参考。"""
@@ -1084,39 +976,28 @@ class PdfService:
         story.append(Spacer(1, 10*mm))
         
         # Holland六种类型介绍
-        story.append(Paragraph('现实型(R)', self.styles['Heading3']))
-        story.append(Paragraph('喜欢具体、实际的工作，喜欢户外活动，有操作机械设备的能力，适合工程技术、农业、制造等领域。', self.styles['Normal']))
-        story.append(Spacer(1, 5*mm))
+        holland_types = [
+            ('现实型(R)', '喜欢具体、实际的工作，喜欢户外活动，有操作机械设备的能力，适合工程技术、农业、制造等领域。'),
+            ('研究型(I)', '喜欢思考问题，进行研究和分析，解决复杂问题，适合科学研究、医疗、技术分析等领域。'),
+            ('艺术型(A)', '喜欢从事艺术、音乐、文学等富有创造性和表现力的活动，适合设计、表演、写作等领域。'),
+            ('社会型(S)', '喜欢与人交往，帮助他人，具有教导、培训和咨询的能力，适合教育、社会服务、医疗护理等领域。'),
+            ('企业型(E)', '善于组织、领导和说服他人，喜欢从事管理和销售，适合管理、销售、法律等领域。'),
+            ('传统型(C)', '喜欢按部就班、有序和规则的工作，善于处理数据，适合会计、行政、档案管理等领域。')
+        ]
         
-        story.append(Paragraph('研究型(I)', self.styles['Heading3']))
-        story.append(Paragraph('喜欢思考问题，进行研究和分析，解决复杂问题，适合科学研究、医疗、技术分析等领域。', self.styles['Normal']))
-        story.append(Spacer(1, 5*mm))
-        
-        story.append(Paragraph('艺术型(A)', self.styles['Heading3']))
-        story.append(Paragraph('喜欢从事艺术、音乐、文学等富有创造性和表现力的活动，适合设计、表演、写作等领域。', self.styles['Normal']))
-        story.append(Spacer(1, 5*mm))
-        
-        story.append(Paragraph('社会型(S)', self.styles['Heading3']))
-        story.append(Paragraph('喜欢与人交往，帮助他人，具有教导、培训和咨询的能力，适合教育、社会服务、医疗护理等领域。', self.styles['Normal']))
-        story.append(Spacer(1, 5*mm))
-        
-        story.append(Paragraph('企业型(E)', self.styles['Heading3']))
-        story.append(Paragraph('善于组织、领导和说服他人，喜欢从事管理和销售，适合管理、销售、法律等领域。', self.styles['Normal']))
-        story.append(Spacer(1, 5*mm))
-        
-        story.append(Paragraph('传统型(C)', self.styles['Heading3']))
-        story.append(Paragraph('喜欢按部就班、有序和规则的工作，善于处理数据，适合会计、行政、档案管理等领域。', self.styles['Normal']))
+        # 添加每种类型的介绍
+        for type_name, type_desc in holland_types:
+            story.append(Paragraph(type_name, self.styles['Heading3']))
+            story.append(Paragraph(type_desc, self.styles['Normal']))
+            story.append(Spacer(1, 5*mm))
     
-    def _add_job_results(self, story, count, job_type, type_info, recommended_majors):
+    def _add_results(self, story, count, job_type, type_info, recommended_majors):
         """添加职业兴趣测评结果分析"""
         # 章节标题
-        story.append(Paragraph('Part.2 职业兴趣测评结果分析', self.styles['Blue_Title']))
-        story.append(Spacer(1, 10*mm))
+        self._add_section_title(story, 'Part.2 职业兴趣测评结果分析')
         
-        # 星号图标
-        star_path = os.path.join(self.resources_dir, 'xingxing.png')
-        if os.path.exists(star_path):
-            story.append(Image(star_path, width=4*mm, height=4*mm))
+        # 添加星号图标
+        self._add_star_icon(story)
         
         # 小标题
         story.append(Paragraph('根据您测评结果进行分析，您的职业兴趣结果如下所示：', self.styles['Normal']))
@@ -1131,13 +1012,6 @@ class PdfService:
             {'key': 'R', 'label': 'R实际型'},
             {'key': 'I', 'label': 'I研究型'}
         ]
-        
-        # 记录分数汇总，用于调试
-        score_summary = {}
-        for ht in holland_types:
-            key = ht['key']
-            score_summary[key] = count[key]['count']
-        current_app.logger.info(f"结果页面显示的分数汇总: {score_summary}")
         
         # 创建分数条表格数据
         bar_data = []
@@ -1191,9 +1065,6 @@ class PdfService:
              str(count['C']['count']), str(count['R']['count']), str(count['I']['count'])]
         ]
         
-        # 记录表格中显示的分数，用于调试
-        current_app.logger.info(f"表格中显示的分数: A={count['A']['count']}, S={count['S']['count']}, E={count['E']['count']}, C={count['C']['count']}, R={count['R']['count']}, I={count['I']['count']}")
-        
         # 创建表格
         score_table = Table(score_data)
         
@@ -1220,8 +1091,8 @@ class PdfService:
         if type_info:
             story.append(Paragraph('职业兴趣测评详细分析', self.styles['Heading2']))
             story.append(Spacer(1, 5*mm))
-
-# 职业兴趣倾向
+            
+            # 职业兴趣倾向
             story.append(Paragraph('职业兴趣倾向', self.styles['Heading3']))
             interest_text = self._ensure_text_safe(type_info.zyxqqx).replace('\n', '<br/>')
             story.append(Paragraph(interest_text, self.styles['Normal']))
@@ -1254,9 +1125,8 @@ class PdfService:
         story.append(Paragraph('适合专业分析', self.styles['Heading2']))
         story.append(Spacer(1, 5*mm))
         
-        # 星号图标
-        if os.path.exists(star_path):
-            story.append(Image(star_path, width=4*mm, height=4*mm))
+        # 添加星号图标
+        self._add_star_icon(story)
             
         # 专业分析说明
         analysis_text = """根据您在职业兴趣倾向、职业性格测评的得分，通过数据统计和分析，将其与常模的数据进行比较，结合国家教育部最新公布的普通高等院校专业目录，我们为您提供匹配度最高的专业大类，专业大类招生是高校招生未来的趋势，根据教育部专业目录要求，专业大类是学科门类下设的一级学科，未来学生选择的专业是专业大类下设的二级学科。不同高校的专业建设情况及人才培养需求不同，因而同一专业大类下设的专业数量和专业方向也不尽相同。在此提醒家长和学生在专业选择上，务必明确目标院校中是否开设意愿就读的专业及您的孩子是否可以报考该专业！"""
@@ -1272,17 +1142,14 @@ class PdfService:
             story.append(Paragraph(majors_text, self.styles['Normal']))
         else:
             story.append(Paragraph('暂无推荐专业', self.styles['Normal']))
-    
-    def _add_job_tips(self, story):
+
+    def _add_tips(self, story):
         """添加职业兴趣测评温馨提示"""
         # 章节标题
-        story.append(Paragraph('Part.3 温馨提示', self.styles['Blue_Title']))
-        story.append(Spacer(1, 10*mm))
+        self._add_section_title(story, 'Part.3 温馨提示')
         
-        # 星号图标
-        star_path = os.path.join(self.resources_dir, 'xingxing.png')
-        if os.path.exists(star_path):
-            story.append(Image(star_path, width=4*mm, height=4*mm))
+        # 添加星号图标
+        self._add_star_icon(story)
         
         # 温馨提示标题
         story.append(Paragraph('温馨提示', self.styles['Heading3']))
@@ -1306,11 +1173,146 @@ class PdfService:
         ]
         
         for note in notes:
-            note_style = ParagraphStyle(
-                'Note',
-                parent=self.styles['Normal'],
-                firstLineIndent=0,
-                leftIndent=15
-            )
-            story.append(Paragraph(note, note_style))
+            story.append(Paragraph(note, self.styles['List_Item']))
             story.append(Spacer(1, 3*mm))
+
+class PdfService:
+    """PDF报告生成服务 - 主类"""
+    
+    def __init__(self):
+        """初始化PDF服务"""
+        # 创建专用报告服务实例
+        self.mbti_service = MbtiReportService()
+        self.job_service = JobReportService()
+        
+        # 初始化基础目录
+        base_dir = current_app.root_path
+        self.output_dir = os.path.join(base_dir, 'static', 'reports')
+        os.makedirs(self.output_dir, exist_ok=True)
+    
+    def generate_mbti_report(self, answer, student):
+        """
+        生成MBTI测评报告
+        
+        Args:
+            answer: MBTI测评答案对象
+            student: 学生对象
+            
+        Returns:
+            str: 生成的PDF文件路径
+        """
+        try:
+            return self.mbti_service.generate_report(answer, student)
+        except Exception as e:
+            current_app.logger.error(f"生成MBTI报告失败: {str(e)}")
+            current_app.logger.error(traceback.format_exc())
+            raise ValueError(f"生成报告时发生错误: {str(e)}")
+    
+    def generate_job_report(self, answer, student):
+        """
+        生成职业兴趣测评报告
+        
+        Args:
+            answer: 职业兴趣测评答案对象
+            student: 学生对象
+            
+        Returns:
+            str: 生成的PDF文件路径
+        """
+        try:
+            return self.job_service.generate_report(answer, student)
+        except Exception as e:
+            current_app.logger.error(f"生成职业兴趣报告失败: {str(e)}")
+            current_app.logger.error(traceback.format_exc())
+            raise ValueError(f"生成报告时发生错误: {str(e)}")
+    
+    def _diagnose_job_data(self, answer, timu_dict):
+        """
+        诊断职业兴趣测评数据，帮助排查问题
+        
+        Args:
+            answer: 职业兴趣测评答案对象
+            timu_dict: 题目字典
+        """
+        try:
+            # 记录答案对象基本信息
+            current_app.logger.info(f"答案ID: {answer.id}, 结果类型: {answer.jieguo}")
+            
+            # 解析答案数据
+            answer_data = json.loads(answer.answer)
+            current_app.logger.info(f"答案数据长度: {len(answer_data)}")
+            
+            # 分析前5个答案（如果有的话）
+            sample_answers = dict(list(answer_data.items())[:5])
+            current_app.logger.info(f"答案数据样本: {sample_answers}")
+            
+            # 检查题目字典
+            current_app.logger.info(f"题目字典长度: {len(timu_dict)}")
+            
+            # 分析前5个题目信息（如果有的话）
+            sample_timu = dict(list(timu_dict.items())[:5])
+            current_app.logger.info(f"题目数据样本: {sample_timu}")
+            
+            # 统计答案类型分布
+            answer_types = {}
+            for value in answer_data.values():
+                if value not in answer_types:
+                    answer_types[value] = 0
+                answer_types[value] += 1
+            current_app.logger.info(f"答案类型分布: {answer_types}")
+            
+            # 检查答案中的题目ID是否在题目字典中存在
+            missing_timu = []
+            for question_id in answer_data.keys():
+                if question_id not in timu_dict:
+                    missing_timu.append(question_id)
+            
+            if missing_timu:
+                current_app.logger.warning(f"有{len(missing_timu)}个题目ID在题目字典中不存在: {missing_timu[:5]}")
+            else:
+                current_app.logger.info("所有题目ID在题目字典中都存在")
+            
+            # 检查wid值
+            wid_counts = {}
+            for timu_info in timu_dict.values():
+                wid = timu_info.get("wid", "")
+                if wid not in wid_counts:
+                    wid_counts[wid] = 0
+                wid_counts[wid] += 1
+            
+            current_app.logger.info(f"题目中的wid分布: {wid_counts}")
+            
+        except Exception as e:
+            current_app.logger.error(f"诊断数据时出错: {str(e)}")
+    
+    def get_report_path(self, report_id):
+        """
+        获取报告文件路径
+        
+        Args:
+            report_id: 报告ID或文件名
+            
+        Returns:
+            str: 完整的报告文件路径
+        """
+        if not report_id:
+            return None
+            
+        # 如果已经是完整路径，直接返回
+        if os.path.isabs(report_id) and os.path.exists(report_id):
+            return report_id
+            
+        # 如果是相对路径，拼接输出目录
+        filepath = os.path.join(self.output_dir, report_id)
+        if os.path.exists(filepath):
+            return filepath
+            
+        # 如果文件不存在，检查是否是没有扩展名的ID
+        if not report_id.endswith('.pdf'):
+            # 检查对应的PDF文件是否存在
+            pdf_path = os.path.join(self.output_dir, f"{report_id}.pdf")
+            if os.path.exists(pdf_path):
+                return pdf_path
+        
+        return None
+    
