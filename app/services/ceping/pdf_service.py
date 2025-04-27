@@ -5,16 +5,13 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.units import mm
 from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.pdfgen import canvas
-from io import BytesIO
+from reportlab.lib.styles import  ParagraphStyle
 import json
 import os
 import time
 import traceback
 from flask import current_app
-from abc import ABC, abstractmethod
-
+from abc import ABC
 
 class BasePdfService(ABC):
     """PDF报告生成基础服务"""
@@ -110,7 +107,7 @@ class BasePdfService(ABC):
             leading=25,
             alignment=1,  # 居中
             spaceAfter=30,
-            textColor=colors.white
+            textColor=colors.black
         )
         
         # 主标题
@@ -128,11 +125,12 @@ class BasePdfService(ABC):
             name='Blue_Title',
             fontName=self.default_font,
             fontSize=20,
-            leading=46,
-            spaceAfter=10,
+            leading=24,  # 减小行高使文本在单元格内更紧凑
+            spaceAfter=0,  # 移除段落后的空间，因为表格会提供间距
             textColor=colors.white,
-            backColor=self.colors['title_blue'],
-            leftIndent=20
+            # 移除背景色设置，改由表格提供
+            leftIndent=0,  # 移除左缩进，因为表格会提供padding
+            alignment=0,  # 左对齐
         )
         
         # 一级标题
@@ -217,8 +215,8 @@ class BasePdfService(ABC):
         canvas.saveState()
         
         # 绘制页眉背景
-        canvas.setFillColorRGB(0.95, 0.95, 0.95)
-        canvas.rect(10*mm, 275*mm, 190*mm, 13*mm, fill=1)
+        # canvas.setFillColorRGB(0.95, 0.95, 0.95)
+        # canvas.rect(10*mm, 275*mm, 190*mm, 13*mm, fill=1)
         
         # 添加Logo
         if os.path.exists(self.logo_path):
@@ -352,7 +350,25 @@ class BasePdfService(ABC):
     
     def _add_section_title(self, story, title):
         """添加章节标题"""
-        story.append(Paragraph(title, self.styles['Blue_Title']))
+        # 创建段落
+        title_paragraph = Paragraph(title, self.styles['Blue_Title'])
+        
+        # 使用表格包装段落以实现垂直居中
+        data = [[title_paragraph]]
+        table = Table(data, colWidths=[480])
+        
+        # 设置表格样式，背景色和垂直居中
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, 0), self.colors['title_blue']),
+            ('VALIGN', (0, 0), (0, 0), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (0, 0), 20),
+            ('RIGHTPADDING', (0, 0), (0, 0), 10),
+            ('TOPPADDING', (0, 0), (0, 0), 10),
+            ('BOTTOMPADDING', (0, 0), (0, 0), 10)
+        ]))
+        
+        # 添加到故事流
+        story.append(table)
         story.append(Spacer(1, 10*mm))
     
     def _get_standard_doc(self, filename):
@@ -1013,51 +1029,88 @@ class JobReportService(BasePdfService):
             {'key': 'I', 'label': 'I研究型'}
         ]
         
-        # 创建分数条表格数据
-        bar_data = []
+        # 最大得分用于计算进度条长度
+        max_score = 20  # 职业兴趣满分
+        bar_width = 300  # 进度条最大宽度
+        
+        # 为每个维度创建单独的表格
         for holland in holland_types:
             key = holland['key']
             score = count[key]['count']
             color_name = count[key]['color']
             
-            # 创建表格行
+            # 计算进度条宽度
+            score_width = int((score / max_score) * bar_width)
+            if score_width == 0 and score > 0:
+                score_width = 10  # 确保即使分数很低也有一点显示
+            
+            # 定义表格结构
+            label_width = 80  # 标签宽度
+            score_label_width = 30  # 分数文本宽度
+            
+            # 创建包含进度条的表格
+            progress_bar_data = [['', '']]  # 两个单元格：一个显示分数进度，一个显示剩余空间
+            progress_colWidths = [score_width, bar_width - score_width]
+            
+            progress_table = Table(progress_bar_data, colWidths=progress_colWidths)
+            
+            # 样式：为进度条部分着色，为整个条加边框
+            progress_style = TableStyle([
+                # 进度条颜色
+                ('BACKGROUND', (0, 0), (0, 0), self.colors['orange'] if color_name == 'orange' else colors.green),
+                # 背景条颜色（浅灰色）
+                ('BACKGROUND', (1, 0), (1, 0), colors.lightgrey),
+                # 为整个进度条添加边框
+                ('BOX', (0, 0), (1, 0), 0.5, colors.black),
+                # 调整高度和内边距
+                ('TOPPADDING', (0, 0), (1, 0), 6),
+                ('BOTTOMPADDING', (0, 0), (1, 0), 6),
+                # 移除内部单元格边框
+                ('LINEAFTER', (0, 0), (0, 0), 0, colors.white)
+            ])
+            
+            progress_table.setStyle(progress_style)
+            
+            # 创建完整行的表格（包括标签、分数和进度条）
             row = [
-                holland['label'],
-                str(score)
+                holland['label'],         # 类型标签
+                str(score),               # 分数
+                progress_table            # 进度条（嵌套表格）
             ]
-            bar_data.append(row)
+            
+            # 计算最终表格列宽
+            colWidths = [label_width, score_label_width, bar_width + 2]  # +2是为了边框
+            
+            # 创建最终表格
+            bar_table = Table([row], colWidths=colWidths)
+            
+            # 设置最终表格样式
+            bar_style = TableStyle([
+                ('FONTNAME', (0, 0), (0, 0), self.bold_font),
+                ('FONTNAME', (1, 0), (1, 0), self.default_font),
+                ('FONTSIZE', (0, 0), (0, 0), 14),  # 标签字体
+                ('FONTSIZE', (1, 0), (1, 0), 14),  # 分数字体
+                ('ALIGN', (0, 0), (0, 0), 'LEFT'),  # 标签左对齐
+                ('ALIGN', (1, 0), (1, 0), 'CENTER'), # 分数居中
+                ('VALIGN', (0, 0), (-1, 0), 'MIDDLE'), # 所有内容垂直居中
+                ('RIGHTPADDING', (1, 0), (1, 0), 5),   # 调整分数右边距
+                ('LEFTPADDING', (2, 0), (2, 0), 5),    # 调整进度条左边距
+            ])
+            
+            # 应用样式
+            bar_table.setStyle(bar_style)
+            
+            # 添加到故事
+            story.append(bar_table)
+            story.append(Spacer(1, 5*mm))  # 表格间距
         
-        # 创建表格
-        bar_table = Table(bar_data, colWidths=[80, 40])
-        
-        # 设置表格样式
-        bar_style = TableStyle([
-            ('FONTNAME', (0, 0), (-1, -1), self.default_font),
-            ('FONTSIZE', (0, 0), (-1, -1), 14),
-            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
-            ('ALIGN', (1, 0), (1, -1), 'CENTER'),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
-        ])
-        
-        # 为每个维度设置对应的背景色
-        for i, holland in enumerate(holland_types):
-            key = holland['key']
-            color_name = count[key]['color']
-            if color_name == 'green':
-                bar_style.add('BACKGROUND', (1, i), (1, i), colors.green)
-            else:
-                bar_style.add('BACKGROUND', (1, i), (1, i), colors.orange)
-            bar_style.add('TEXTCOLOR', (1, i), (1, i), colors.white)
-        
-        bar_table.setStyle(bar_style)
-        story.append(bar_table)
         story.append(Spacer(1, 10*mm))
         
         # 职业兴趣代码
         story.append(Paragraph(f'您的职业兴趣（霍兰德）代码是：{job_type}', self.styles['Heading2']))
         story.append(Spacer(1, 10*mm))
         
+        # 以下代码保持不变...
         # 创建得分表格
         score_data = [
             ['职业类型', '艺术型(A)', '社会型(S)', '企业型(E)', '传统型(C)', '实际型(R)', '研究型(I)'],
