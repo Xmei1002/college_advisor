@@ -7,6 +7,11 @@ from app.models.ceping_mbti_answer import CepingMbtiAnswer
 from app.models.ceping_mbti_timu import CepingMbtiTimu
 from app.models.ceping_mbti_leixing import CepingMbtiLeixing
 from app.services.ceping.pdf_service import PdfService
+from app.api.schemas.ceping import (
+    MbtiQuestionSchema, 
+    MbtiAnswerSubmitSchema, 
+    MbtiAnswerResponseSchema
+)
 import json
 import time
 from app.extensions import db
@@ -18,9 +23,11 @@ mbti_bp = Blueprint(
 )
 
 @mbti_bp.route('/questions', methods=['GET'])
+@mbti_bp.response(200, MbtiQuestionSchema(many=True))
 @api_error_handler
 def get_questions():
-    """获取MBTI测评题目"""
+    """获取MBTI测评题目
+    """
     # 不需要student_id也可以获取题目
     questions = CepingMbtiTimu.query.order_by(CepingMbtiTimu.t_id).all()
     questions_data = [
@@ -42,15 +49,14 @@ def get_questions():
     )
 
 @mbti_bp.route('/submit', methods=['POST'])
+@mbti_bp.arguments(MbtiAnswerSubmitSchema)
+@mbti_bp.response(200, MbtiAnswerResponseSchema)
 @api_error_handler
-def submit_answer():
+def submit_answer(args):
     """提交MBTI测评答案"""
-    # 从请求体获取student_id
-    student_id = request.json.get('student_id')
-    if not student_id:
-        return APIResponse.error("缺少学生ID", code=400)
-        
-    answer_data = request.json.get('answer', {})
+    # 从请求参数获取student_id和answer
+    student_id = args.get('student_id')
+    answer_data = args.get('answer', {})
     
     # 计算结果
     count = {
@@ -91,51 +97,52 @@ def submit_answer():
     else:
         personality_type += 'J'
     
-    # 保存答案和结果
-    new_answer = CepingMbtiAnswer(
-        student_id=student_id,
-        answer=json.dumps(answer_data),
-        jieguo=json.dumps(count),
-        addtime=int(time.time())
-    )
+    # 检查是否已存在该学生的测评记录
+    existing_answer = CepingMbtiAnswer.query.filter_by(student_id=student_id).first()
     
-    db.session.add(new_answer)
-    db.session.commit()
-    
-    # 获取类型详情
-    type_info = CepingMbtiLeixing.query.filter_by(name=personality_type).first()
-    type_detail = None
-    if type_info:
-        type_detail = {
-            'name': type_info.name,
-            'xingge': type_info.xingge,
-            'youshi': type_info.youshi,
-            'lueshi': type_info.lueshi,
-            'zhiye': type_info.zhiye,
-            'dianxing': type_info.dianxing
-        }
-    
-    return APIResponse.success(
-        data={
-            'id': new_answer.id,
-            'personality_type': personality_type,
-            'type_detail': type_detail,
-            'scores': count
-        },
-        message="提交成功"
-    )
+    if existing_answer:
+        # 更新现有记录
+        existing_answer.answer = json.dumps(answer_data)
+        existing_answer.jieguo = json.dumps(count)
+        existing_answer.addtime = int(time.time())
+        db.session.commit()
+        
+        return APIResponse.success(
+            data={
+                'id': existing_answer.id,
+            },
+            message="更新成功"
+        )
+    else:
+        # 创建新记录
+        new_answer = CepingMbtiAnswer(
+            student_id=student_id,
+            answer=json.dumps(answer_data),
+            jieguo=json.dumps(count),
+            addtime=int(time.time())
+        )
+        
+        db.session.add(new_answer)
+        db.session.commit()
+        
+        return APIResponse.success(
+            data={
+                'id': new_answer.id,
+            },
+            message="提交成功"
+        )
 
-@mbti_bp.route('/result/<int:answer_id>', methods=['GET'])
+@mbti_bp.route('/result/<int:student_id>', methods=['GET'])
+@mbti_bp.response(200, MbtiAnswerResponseSchema)
 @api_error_handler
-def get_result(answer_id):
-    """获取MBTI测评结果"""
-    # 从查询参数获取student_id
-    student_id = request.args.get('student_id')
+def get_result(student_id):
+    """获取MBTI测评结果
+    """
     if not student_id:
         return APIResponse.error("缺少学生ID", code=400)
     
     # 查询答案记录
-    answer = CepingMbtiAnswer.query.filter_by(id=answer_id, student_id=student_id).first()
+    answer = CepingMbtiAnswer.query.filter_by(student_id=student_id).first()
     if not answer:
         return APIResponse.error("记录不存在", code=404)
     
@@ -188,16 +195,14 @@ def get_result(answer_id):
         message="获取结果成功"
     )
 
-@mbti_bp.route('/report/<int:answer_id>', methods=['GET'])
+@mbti_bp.route('/report/<int:student_id>', methods=['GET'])
 @api_error_handler
-def generate_report(answer_id):
-    """生成MBTI测评报告"""
-    student_id = request.args.get('student_id')
-    if not student_id:
-        return APIResponse.error("缺少学生ID", code=400)
-    
+def generate_report(student_id):
+    """
+      生成MBTI测评报告
+    """
     # 查询答案记录
-    answer = CepingMbtiAnswer.query.filter_by(id=answer_id, student_id=student_id).first()
+    answer = CepingMbtiAnswer.query.filter_by(student_id=student_id).first()
     if not answer:
         return APIResponse.error("记录不存在", code=404)
     
@@ -214,5 +219,5 @@ def generate_report(answer_id):
     return send_file(
         pdf_path,
         as_attachment=True,
-        download_name=f"MBTI_{student.name}_{answer_id}.pdf"
+        download_name=f"MBTI_{student.name}.pdf"
     )
