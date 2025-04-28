@@ -5,13 +5,14 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.units import mm
 from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak
-from reportlab.lib.styles import  ParagraphStyle
+from reportlab.lib.styles import ParagraphStyle
 import json
 import os
 import time
 import traceback
 from flask import current_app
 from abc import ABC
+import copy 
 
 class BasePdfService(ABC):
     """PDF报告生成基础服务"""
@@ -38,13 +39,26 @@ class BasePdfService(ABC):
         os.makedirs(self.output_dir, exist_ok=True)
         
         # 资源目录
-        self.resources_dir = os.path.join(base_dir, 'static', 'images')
+        self.resources_dir = os.path.join(base_dir, 'static', 'pdf')
         
         # 常用资源路径
         self.logo_path = os.path.join(self.resources_dir, 'logo.png')
         self.line_path = os.path.join(self.resources_dir, 'xian.png')
         self.star_path = os.path.join(self.resources_dir, 'xingxing.png')
         self.separator_path = os.path.join(self.resources_dir, 'stitle_bg.png')
+        
+        # 添加更多资源路径，与PHP代码保持一致
+        self.backbj_path = os.path.join(self.resources_dir, 'backbj.png')
+        self.yemei_path = os.path.join(self.resources_dir, 'yemei.png')
+        self.dian1_path = os.path.join(self.resources_dir, 'dian1.png')
+        self.dibu_bg_path = os.path.join(self.resources_dir, 'dibu_bg.png')
+        self.jiexi1_path = os.path.join(self.resources_dir, 'jiexi1.png')
+        self.jiexi2_path = os.path.join(self.resources_dir, 'jiexi2.png')
+        self.jiexi3_path = os.path.join(self.resources_dir, 'jiexi3.png')
+        self.jiexi4_path = os.path.join(self.resources_dir, 'jiexi4.png')
+        self.jiexi5_path = os.path.join(self.resources_dir, 'jiexi5.png')
+        self.jiexi6_path = os.path.join(self.resources_dir, 'jiexi6.png')
+        self.shuoming_path = os.path.join(self.resources_dir, 'shuoming.png')
     
     def _create_color_palette(self):
         """创建颜色调色板"""
@@ -107,7 +121,7 @@ class BasePdfService(ABC):
             leading=25,
             alignment=1,  # 居中
             spaceAfter=30,
-            textColor=colors.black
+            textColor=colors.white
         )
         
         # 主标题
@@ -167,9 +181,9 @@ class BasePdfService(ABC):
             name='Normal',
             fontName=self.default_font,
             fontSize=12,
-            leading=22,
+            leading=20,
             spaceAfter=6,
-            firstLineIndent=32  # 首行缩进
+            firstLineIndent=30  # 首行缩进
         )
         
         # 列表项样式
@@ -210,21 +224,17 @@ class BasePdfService(ABC):
         
         return styles
     
-    def _draw_header(self, canvas, doc, title, display_page_num=True):
+    def _draw_header(self, canvas, doc, title, display_page_num=True, display_header_bg=True):
         """绘制页眉和页码"""
         canvas.saveState()
         
-        # 绘制页眉背景
-        # canvas.setFillColorRGB(0.95, 0.95, 0.95)
-        # canvas.rect(10*mm, 275*mm, 190*mm, 13*mm, fill=1)
+        # 绘制页眉背景 - 使用yemei.png (根据参数决定是否显示)
+        if display_header_bg and os.path.exists(self.yemei_path):
+            canvas.drawImage(self.yemei_path, 10*mm, 275*mm, width=190*mm, height=13*mm, preserveAspectRatio=False)
         
         # 添加Logo
         if os.path.exists(self.logo_path):
-            canvas.drawImage(self.logo_path, 10*mm, 275*mm, width=51*mm, height=13*mm)
-        
-        # 添加标题
-        canvas.setFont(self.default_font, 11)
-        canvas.drawRightString(200*mm, 282*mm, title)
+            canvas.drawImage(self.logo_path, 10*mm, 275*mm, width=51*mm, height=16*mm, preserveAspectRatio=False)
         
         # 添加页码 (在页面底部)
         if display_page_num:
@@ -255,31 +265,36 @@ class BasePdfService(ABC):
     
     def _add_common_cover(self, story, title, subtitle, student, answer, show_student_info=True):
         """添加通用报告封面"""
+        # 添加一些空间，以便标题显示在适当位置
+        story.append(Spacer(1, 20*mm))
+        
         # 生成标题
         story.append(Paragraph(title, self.styles['Cover_Title']))
         story.append(Spacer(1, 10*mm))
+
+        # 方法1: 使用Canvas在页面回调函数中绘制分隔图片和副标题
+        # 为回调函数保存副标题信息
+        self._cover_subtitle = subtitle
         
-        # 添加分隔图片
-        if os.path.exists(self.separator_path):
-            story.append(Image(self.separator_path, width=140*mm, height=10*mm))
+        # 仅添加一个占位符空间，实际内容将在Canvas中绘制
+        story.append(Spacer(1, 20*mm))  # 分隔图片的高度加一些额外空间
         
-        # 生成副标题
-        story.append(Paragraph(subtitle, self.styles['Cover_Subtitle']))
-        story.append(Spacer(1, 80*mm))
-        
+        # 增加更多空间，使学生信息表格位置下移
+        story.append(Spacer(1, 120*mm))  # 从原来的70mm增加到120mm
+
         if show_student_info:
-            # 学生信息表格
+            # 学生信息表格，使用白色字体
             student_data = [
                 ['姓       名:', student.name],
                 ['学       校:', student.school or ''],
                 ['报告时间:', time.strftime('%Y-%m-%d', time.localtime(answer.addtime))]
             ]
             
-            # 表格样式
+            # 修改表格样式，使用白色字体
             table_style = TableStyle([
                 ('FONTNAME', (0, 0), (-1, -1), self.default_font),
                 ('FONTSIZE', (0, 0), (-1, -1), 16),
-                ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+                ('TEXTCOLOR', (0, 0), (-1, -1), colors.white),  # 改为白色字体
                 ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
                 ('ALIGN', (1, 0), (1, -1), 'LEFT'),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
@@ -289,20 +304,37 @@ class BasePdfService(ABC):
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
             ])
             
-            # 创建表格并设置样式
-            student_table = Table(student_data, colWidths=[100, 220])
+            # 调整表格宽度和列宽比例
+            student_table = Table(student_data, colWidths=[220, 220])
             student_table.setStyle(table_style)
+
+            # 确保表格水平居中
+            # 计算页面可用宽度
+            available_width = A4[0] - 20*mm  # 页面宽度减去左右边距
             
-            # 使用嵌套表格实现居中对齐
-            page_width = A4[0] - 20*mm  # 页面宽度减去左右边距
+            # 创建外部表格，用于居中
             outer_data = [[student_table]]
-            outer_table = Table(outer_data, colWidths=[page_width])
+            outer_table = Table(outer_data, colWidths=[320])  # 固定宽度为320mm（略小于available_width）
+            
+            # 设置外部表格样式，确保居中
             outer_table.setStyle(TableStyle([
-                ('ALIGN', (0, 0), (0, 0), 'CENTER'),
-                ('VALIGN', (0, 0), (0, 0), 'MIDDLE'),
+                ('ALIGN', (0, 0), (0, 0), 'CENTER'),  # 水平居中
+                ('VALIGN', (0, 0), (0, 0), 'MIDDLE'),  # 垂直居中
+                ('LEFTPADDING', (0, 0), (0, 0), 0),
+                ('RIGHTPADDING', (0, 0), (0, 0), 0),
             ]))
             
-            story.append(outer_table)
+            # 为了确保整个表格在页面中居中，我们再包装一层
+            final_data = [[outer_table]]
+            final_table = Table(final_data, colWidths=[available_width])
+            final_table.setStyle(TableStyle([
+                ('ALIGN', (0, 0), (0, 0), 'CENTER'),
+                ('VALIGN', (0, 0), (0, 0), 'MIDDLE'),
+                ('LEFTPADDING', (0, 0), (0, 0), 0),
+                ('RIGHTPADDING', (0, 0), (0, 0), 0),
+            ]))
+            
+            story.append(final_table)
     
     def _add_common_copyright(self, story):
         """添加版权声明"""
@@ -317,12 +349,12 @@ class BasePdfService(ABC):
     
     def _add_common_toc(self, story, toc_items):
         """添加通用目录"""
-        story.append(Paragraph('目录 Catalog', self.styles['Title']))
         story.append(Spacer(1, 5*mm))
+        story.append(Paragraph('目录 Catalog', self.styles['Title']))
         
         # 添加下划线图片
         if os.path.exists(self.line_path):
-            story.append(Image(self.line_path, width=54*mm, height=2*mm))
+            story.append(Image(self.line_path, width=54*mm, height=2*mm, hAlign='LEFT'))
         
         story.append(Spacer(1, 10*mm))
         
@@ -350,12 +382,13 @@ class BasePdfService(ABC):
     
     def _add_section_title(self, story, title):
         """添加章节标题"""
+        story.append(Spacer(1, 3*mm))
         # 创建段落
         title_paragraph = Paragraph(title, self.styles['Blue_Title'])
         
         # 使用表格包装段落以实现垂直居中
         data = [[title_paragraph]]
-        table = Table(data, colWidths=[480])
+        table = Table(data, colWidths=[540])
         
         # 设置表格样式，背景色和垂直居中
         table.setStyle(TableStyle([
@@ -391,12 +424,75 @@ class BasePdfService(ABC):
         """创建页面回调函数"""
         
         def first_page_callback(canvas, doc):
-            self._draw_header(canvas, doc, title, display_page_num=False)
+            # 绘制背景图片（在绘制其他内容之前）
+            if hasattr(self, 'backbj_path') and os.path.exists(self.backbj_path):
+                canvas.saveState()
+                # 绘制背景图片，铺满整个页面
+                canvas.drawImage(self.backbj_path, 0, 0, width=A4[0], height=A4[1], preserveAspectRatio=False)
+                canvas.restoreState()
+            
+            # 原有的页眉绘制，但不显示页眉背景
+            self._draw_header(canvas, doc, title, display_page_num=False, display_header_bg=False)
+            
+            # 绘制分隔图片和副标题（如果存在）
+            if hasattr(self, '_cover_subtitle') and hasattr(self, 'separator_path') and os.path.exists(self.separator_path):
+                canvas.saveState()
+                
+                # 计算位置：标题下方约80mm处（根据之前的Spacer计算）
+                separator_y = A4[1] - 80*mm
+                separator_width = 140*mm
+                separator_height = 10*mm
+                separator_x = (A4[0] - separator_width) / 2  # 居中
+                
+                # 绘制分隔图片
+                canvas.drawImage(self.separator_path, separator_x, separator_y, 
+                            width=separator_width, height=separator_height)
+                
+                # 设置文本样式
+                canvas.setFont(self.default_font, 19)
+                canvas.setFillColor(colors.white)  # 白色文本，可以根据分隔图背景调整
+                
+                # 绘制副标题（居中）
+                subtitle = self._cover_subtitle
+                canvas.drawCentredString(A4[0]/2, separator_y + separator_height/2 - 3*mm, subtitle)
+                
+                canvas.restoreState()
         
         def later_pages_callback(canvas, doc):
             # 目录页面也不显示页码
             if doc.page <= 3:  # 封面、前言、目录页不显示页码
                 self._draw_header(canvas, doc, title, display_page_num=False)
+                if doc.page == 2:
+                    # 在前言页的底部绘制版权声明
+                    canvas.saveState()
+                    
+                    # 设置字体和颜色
+                    canvas.setFont(self.default_font, 10)
+                    canvas.setFillColor(colors.gray)
+                    
+                    # 版权文本（简化版，没有HTML标签）
+                    copyright_lines = [
+                        "* 版权声明",
+                        "本报告内容属于个人隐私，请注意保密",
+                        "本报告必须在专业咨询师的指导下使用",
+                        "本报告的所有权都受到版权保护，未经授权不得擅自转载、挪用、复制、刊印等，不得用于商业或非商业用途"
+                    ]
+                    
+                    # 计算位置
+                    x = 10*mm  # 左边距
+                    y = 60*mm  # 底部上方30mm处
+                    line_height = 6*mm  # 行间距
+                    
+                    # 绘制文本，第一行带红色星号
+                    canvas.setFillColor(colors.red)
+                    canvas.drawString(x, y, "*")
+                    canvas.setFillColor(colors.gray)
+                    canvas.drawString(x + 5*mm, y, "版权声明")
+                    
+                    for i, line in enumerate(copyright_lines[1:], 1):
+                        canvas.drawString(x, y - i*line_height, line)
+                    
+                    canvas.restoreState()
             else:
                 # 从第4页开始显示页码(显示的页码从1开始)
                 current_page = doc.page - 3
@@ -498,6 +594,7 @@ class MbtiReportService(BasePdfService):
     
     def _add_cover(self, story, student, answer):
         """添加MBTI报告封面"""
+            
         self._add_common_cover(
             story, 
             '性格能力测评', 
@@ -508,31 +605,27 @@ class MbtiReportService(BasePdfService):
     
     def _add_preface(self, story):
         """添加MBTI报告前言"""
+        story.append(Spacer(1, 5*mm))
         # 前言标题
         story.append(Paragraph('前言', self.styles['Title']))
-        story.append(Spacer(1, 5*mm))
-        
         # 添加下划线图片
         if os.path.exists(self.line_path):
-            story.append(Image(self.line_path, width=20*mm, height=2*mm))
+            story.append(Image(self.line_path, width=20*mm, height=2*mm, hAlign='LEFT'))
         
         story.append(Spacer(1, 5*mm))
         
         # 前言内容
         preface_text = [
             """性格能力测评采用当今世界上应用最广泛的性格测试工具之一MBTI作为基础研发。MBTI被翻译成近20种世界主要语言，每年的使用者多达千万。据有关统计，世界500强公司中有92%引入了MBTI测试，应用于员工的MBTI测试，可以帮助员工自我发展及提升组织绩效。""",
-            
             """探索自我，性格能力测评可以帮助了解：我是什么性格？我适合什么职业？我的性格优势和劣势是什么？性格能力测评可以更好的帮你了解自我、从而做出最适合你的职业选择，更容易获取事业上的成功。""",
-            
             """性格能力测评系统是启明星高考为解决考生的迷茫，家长老师的困惑，让考生都能选择适合自己的科目，正确做出职业生涯规划，经过多年研究及开发，针对我省高考现状，结合大学生职业规划调查报告，参考大学生就业情况，为高考学生量身打造的。"""
         ]
         
         for text in preface_text:
             story.append(Paragraph(text, self.styles['Normal']))
-            story.append(Spacer(1, 5*mm))
         
         # 添加版权声明
-        self._add_common_copyright(story)
+        # self._add_common_copyright(story)
     
     def _add_toc(self, story):
         """添加MBTI报告目录"""
@@ -552,7 +645,6 @@ class MbtiReportService(BasePdfService):
         # 介绍文本
         intro_texts = [
             """MBTI从能量的来源方向、信息收集的方式、做决定时候的偏好、以及生活态度四个方面对人格进行考量，其中每个一部分又分两个倾向，分别是：能量来源-内向(I)、外向(E)；信息收集-感觉(S)、直觉(N)；决定偏好-思考(T)、情感(F)；生活态度-感知(P)、判断(J)。MBTI性格评估主要应用于职业规划、团队建设、人际交往、教育等方面。""",
-            
             """心理学认为，"性格"是一种个体内部的行为倾向，它具有整体性、结构性、持久稳定性等特点，是每个人特有的，可以对个人外显的行为、态度提供统一的、内在的解释。MBTI的人格类型分为四个维度，每个维度上有两个方向，一共八个方面，对应八种人格特点，具体如下："""
         ]
         
@@ -583,8 +675,6 @@ class MbtiReportService(BasePdfService):
         # 章节标题
         self._add_section_title(story, 'Part.2 性格能力测评结果分析')
         
-        # 添加星号图标
-        self._add_star_icon(story)
         
         # 小标题
         subtitle = f"""职业性格分析 根据您测评结果进行分析，您的职业性格结果如下所示："""
@@ -706,7 +796,6 @@ class MbtiReportService(BasePdfService):
         
         story.append(Spacer(1, 5*mm))
         
-        # 以下代码保持不变...
         # 创建得分汇总表格
         score_data = [
             ['性格维度', '得分', '倾向'],
@@ -759,6 +848,7 @@ class MbtiReportService(BasePdfService):
             
             # 添加分页符，后续内容放到下一页
             story.append(PageBreak())
+            self._add_section_title(story, 'Part.2 性格能力测评结果分析')
             
             # 优势分析
             story.append(Paragraph('优势分析', self.styles['Heading3']))
@@ -788,8 +878,6 @@ class MbtiReportService(BasePdfService):
         # 章节标题
         self._add_section_title(story, 'Part.3 温馨提示')
         
-        # 添加星号图标
-        self._add_star_icon(story)
         
         # 温馨提示标题
         story.append(Paragraph('温馨提示', self.styles['Heading3']))
@@ -946,26 +1034,24 @@ class JobReportService(BasePdfService):
     
     def _add_preface(self, story):
         """添加职业兴趣报告前言"""
+        story.append(Spacer(1, 5*mm))
         # 前言标题
         story.append(Paragraph('前言', self.styles['Title']))
-        story.append(Spacer(1, 5*mm))
-        
         # 添加下划线图片
         if os.path.exists(self.line_path):
-            story.append(Image(self.line_path, width=20*mm, height=2*mm))
+            story.append(Image(self.line_path, width=20*mm, height=2*mm, hAlign='LEFT'))
         
         story.append(Spacer(1, 5*mm))
         
         # 前言内容
         preface_text = """高考是影响考生人生发展的一次重要事件，历来都是学生本人和家长乃至全社会最为重视的事情。高考作为基础教育的"指挥棒"，自从1977年恢复高考以来，关于高考的变革都影响着教育的基本方向和教学策略。《中国职业技术教育》中曾对大学生入校后的关于对专业了解程度的调查显示：对自己所学专业与社会职业要求不清楚的学生占92.2%，选择专业时家长做主的占71.2%，选择专业时听取同学、亲戚意见的占55.3%，对自己不了解的占51.5%，对社会不了解的占62.1%，对职业不了解的占89.2%。从这些数据看来大学生入学时对所学专业与社会职业的了解是有限的，或者说是盲目的。人的一生里总要面临各种抉择，而高考选择专业可能是整个人生的抉择中最有影响、最具挑战性的一个。每逢高考志愿填报时，考生迷茫、家长困惑、老师谨慎。"""
         story.append(Paragraph(preface_text, self.styles['Normal']))
-        story.append(Spacer(1, 5*mm))
         
         second_paragraph = """职业兴趣测评系统是启明星高考为解决考生的迷茫，家长老师的困惑，让考生都能选择适合自己的专业，正确做出职业生涯规划，经过多年研究及开发，针对我省高考现状，结合大学生职业规划调查报告，参考大学生就业情况，为高考学生量身打造的。"""
         story.append(Paragraph(second_paragraph, self.styles['Normal']))
         
         # 添加版权声明
-        self._add_common_copyright(story)
+        # self._add_common_copyright(story)
     
     def _add_toc(self, story):
         """添加职业兴趣报告目录"""
@@ -985,35 +1071,28 @@ class JobReportService(BasePdfService):
         # 介绍文本
         intro_text = """职业兴趣测评是以美国心理学家Holland的职业兴趣理论为基础，同时在题目内容设计、常模选取方面结合了考生的实际情况而开发的专业测评工具。通过该系统，可以帮助测试者相对精确地了解自身的个体特点和职业特点之间的匹配关系，同时为测评者在进行职业规划时，提供客观的参考依据分析你的兴趣爱好，推荐你感兴趣和适合的职业作为参考。"""
         story.append(Paragraph(intro_text, self.styles['Normal']))
-        story.append(Spacer(1, 5*mm))
         
         second_paragraph = """职业兴趣与职业环境的匹配是决定成功的最重要的因素之一。人们通常倾向于选择与自我职业兴趣类型匹配的职业环境，如具有艺术倾向的个体通常希望在艺术型的职业环境中工作，以便最大限度地发挥个人的潜能。Holland从兴趣的角度出发来探索职业指导问题，根据人格与环境交互作用的观点，把人分为六大类：现实型(R)、研究型(I)、艺术型(A)、社会型(S)、企业型(E)、传统型(C)。"""
         story.append(Paragraph(second_paragraph, self.styles['Normal']))
-        story.append(Spacer(1, 10*mm))
         
-        # Holland六种类型介绍
-        holland_types = [
-            ('现实型(R)', '喜欢具体、实际的工作，喜欢户外活动，有操作机械设备的能力，适合工程技术、农业、制造等领域。'),
-            ('研究型(I)', '喜欢思考问题，进行研究和分析，解决复杂问题，适合科学研究、医疗、技术分析等领域。'),
-            ('艺术型(A)', '喜欢从事艺术、音乐、文学等富有创造性和表现力的活动，适合设计、表演、写作等领域。'),
-            ('社会型(S)', '喜欢与人交往，帮助他人，具有教导、培训和咨询的能力，适合教育、社会服务、医疗护理等领域。'),
-            ('企业型(E)', '善于组织、领导和说服他人，喜欢从事管理和销售，适合管理、销售、法律等领域。'),
-            ('传统型(C)', '喜欢按部就班、有序和规则的工作，善于处理数据，适合会计、行政、档案管理等领域。')
-        ]
-        
-        # 添加每种类型的介绍
-        for type_name, type_desc in holland_types:
-            story.append(Paragraph(type_name, self.styles['Heading3']))
-            story.append(Paragraph(type_desc, self.styles['Normal']))
-            story.append(Spacer(1, 5*mm))
+        # 添加职业类型解释图片
+        if os.path.exists(self.jiexi1_path):
+            story.append(Image(self.jiexi1_path, width=170*mm, height=65*mm))
+        if os.path.exists(self.jiexi2_path):
+            story.append(Image(self.jiexi2_path, width=170*mm, height=65*mm))
+        if os.path.exists(self.jiexi3_path):
+            story.append(Image(self.jiexi3_path, width=170*mm, height=62*mm))
+        if os.path.exists(self.jiexi4_path):
+            story.append(Image(self.jiexi4_path, width=170*mm, height=62*mm))
+        if os.path.exists(self.jiexi5_path):
+            story.append(Image(self.jiexi5_path, width=170*mm, height=62*mm))
+        if os.path.exists(self.jiexi6_path):
+            story.append(Image(self.jiexi6_path, width=170*mm, height=62*mm))
     
     def _add_results(self, story, count, job_type, type_info, recommended_majors):
         """添加职业兴趣测评结果分析"""
         # 章节标题
         self._add_section_title(story, 'Part.2 职业兴趣测评结果分析')
-        
-        # 添加星号图标
-        self._add_star_icon(story)
         
         # 小标题
         story.append(Paragraph('根据您测评结果进行分析，您的职业兴趣结果如下所示：', self.styles['Normal']))
@@ -1048,25 +1127,20 @@ class JobReportService(BasePdfService):
             label_width = 80  # 标签宽度
             score_label_width = 30  # 分数文本宽度
             
-            # 创建包含进度条的表格
-            progress_bar_data = [['', '']]  # 两个单元格：一个显示分数进度，一个显示剩余空间
-            progress_colWidths = [score_width, bar_width - score_width]
+            # 创建进度条 - 修改为只有一个单元格，不再显示灰色背景
+            progress_bar_data = [['']]
+            progress_table = Table(progress_bar_data, colWidths=[score_width])
             
-            progress_table = Table(progress_bar_data, colWidths=progress_colWidths)
-            
-            # 样式：为进度条部分着色，为整个条加边框
+            # 样式：只使用彩色背景，移除边框和灰色背景，减小高度
             progress_style = TableStyle([
                 # 进度条颜色
                 ('BACKGROUND', (0, 0), (0, 0), self.colors['orange'] if color_name == 'orange' else colors.green),
-                # 背景条颜色（浅灰色）
-                ('BACKGROUND', (1, 0), (1, 0), colors.lightgrey),
-                # 为整个进度条添加边框
-                ('BOX', (0, 0), (1, 0), 0.5, colors.black),
-                # 调整高度和内边距
-                ('TOPPADDING', (0, 0), (1, 0), 6),
-                ('BOTTOMPADDING', (0, 0), (1, 0), 6),
-                # 移除内部单元格边框
-                ('LINEAFTER', (0, 0), (0, 0), 0, colors.white)
+                # 调整高度 - 减小内边距使进度条更细
+                ('TOPPADDING', (0, 0), (0, 0), 3),  # 从6减小到3
+                ('BOTTOMPADDING', (0, 0), (0, 0), 3),  # 从6减小到3
+                # 移除左右内边距
+                ('LEFTPADDING', (0, 0), (0, 0), 0),
+                ('RIGHTPADDING', (0, 0), (0, 0), 0),
             ])
             
             progress_table.setStyle(progress_style)
@@ -1078,8 +1152,8 @@ class JobReportService(BasePdfService):
                 progress_table            # 进度条（嵌套表格）
             ]
             
-            # 计算最终表格列宽
-            colWidths = [label_width, score_label_width, bar_width + 2]  # +2是为了边框
+            # 计算最终表格列宽 - 移除额外的边框宽度
+            colWidths = [label_width, score_label_width, bar_width]
             
             # 创建最终表格
             bar_table = Table([row], colWidths=colWidths)
@@ -1104,18 +1178,18 @@ class JobReportService(BasePdfService):
             story.append(bar_table)
             story.append(Spacer(1, 5*mm))  # 表格间距
         
-        story.append(Spacer(1, 10*mm))
+        # 以下代码保持不变
+        story.append(Spacer(1, 5*mm))
         
         # 职业兴趣代码
         story.append(Paragraph(f'您的职业兴趣（霍兰德）代码是：{job_type}', self.styles['Heading2']))
-        story.append(Spacer(1, 10*mm))
+        story.append(Spacer(1, 5*mm))
         
-        # 以下代码保持不变...
         # 创建得分表格
         score_data = [
             ['职业类型', '艺术型(A)', '社会型(S)', '企业型(E)', '传统型(C)', '实际型(R)', '研究型(I)'],
             ['分值', str(count['A']['count']), str(count['S']['count']), str(count['E']['count']), 
-             str(count['C']['count']), str(count['R']['count']), str(count['I']['count'])]
+            str(count['C']['count']), str(count['R']['count']), str(count['I']['count'])]
         ]
         
         # 创建表格
@@ -1138,71 +1212,65 @@ class JobReportService(BasePdfService):
         
         # 满分说明
         story.append(Paragraph('职业兴趣满分为20分', self.styles['Normal']))
-        story.append(PageBreak())
         
-        # 类型详情
-        if type_info:
-            story.append(Paragraph('职业兴趣测评详细分析', self.styles['Heading2']))
-            story.append(Spacer(1, 5*mm))
+        # 添加说明图片
+        if os.path.exists(self.shuoming_path):
+            story.append(Image(self.shuoming_path, width=190*mm, height=58*mm))
             
-            # 职业兴趣倾向
-            story.append(Paragraph('职业兴趣倾向', self.styles['Heading3']))
-            interest_text = self._ensure_text_safe(type_info.zyxqqx).replace('\n', '<br/>')
-            story.append(Paragraph(interest_text, self.styles['Normal']))
-            story.append(Spacer(1, 5*mm))
+            # 类型详情
+            if type_info:
+                # 章节标题（续）
+                self._add_section_title(story, 'Part.2 职业兴趣测评结果分析')
+                
+                # 职业兴趣倾向
+                story.append(Paragraph('职业兴趣倾向', self.styles['Heading3']))
+                interest_text = self._ensure_text_safe(type_info.zyxqqx).replace('\n', '<br/>')
+                story.append(Paragraph(interest_text, self.styles['Normal']))
+                
+                # 性格倾向
+                story.append(Paragraph('性格倾向', self.styles['Heading3']))
+                personality_text = self._ensure_text_safe(type_info.xgqx).replace('\n', '<br/>')
+                story.append(Paragraph(personality_text, self.styles['Normal']))
+                
+                # 职业领域
+                story.append(Paragraph('职业领域', self.styles['Heading3']))
+                career_text = self._ensure_text_safe(type_info.zyly).replace('\n', '<br/>')
+                story.append(Paragraph(career_text, self.styles['Normal']))
+                
+                # 典型职业
+                story.append(Paragraph('典型职业', self.styles['Heading3']))
+                typical_job_text = self._ensure_text_safe(type_info.dxzy).replace('\n', '<br/>')
+                story.append(Paragraph(typical_job_text, self.styles['Normal']))
+            else:
+                story.append(Paragraph('未找到对应的职业兴趣类型详情', self.styles['Normal']))
             
-            # 性格倾向
-            story.append(Paragraph('性格倾向', self.styles['Heading3']))
-            personality_text = self._ensure_text_safe(type_info.xgqx).replace('\n', '<br/>')
-            story.append(Paragraph(personality_text, self.styles['Normal']))
-            story.append(Spacer(1, 5*mm))
+            # 添加分页
+            story.append(PageBreak())
             
-            # 职业领域
-            story.append(Paragraph('职业领域', self.styles['Heading3']))
-            career_text = self._ensure_text_safe(type_info.zyly).replace('\n', '<br/>')
-            story.append(Paragraph(career_text, self.styles['Normal']))
-            story.append(Spacer(1, 5*mm))
+            # 适合专业分析
+            # 章节标题（续）
+            self._add_section_title(story, 'Part.2 职业兴趣测评结果分析')
             
-            # 典型职业
-            story.append(Paragraph('典型职业', self.styles['Heading3']))
-            typical_job_text = self._ensure_text_safe(type_info.dxzy).replace('\n', '<br/>')
-            story.append(Paragraph(typical_job_text, self.styles['Normal']))
-            story.append(Spacer(1, 5*mm))
-        else:
-            story.append(Paragraph('未找到对应的职业兴趣类型详情', self.styles['Normal']))
-        
-        # 添加分页
-        story.append(PageBreak())
-        
-        # 适合专业分析
-        story.append(Paragraph('适合专业分析', self.styles['Heading2']))
-        story.append(Spacer(1, 5*mm))
-        
-        # 添加星号图标
-        self._add_star_icon(story)
+            # 专业分析说明
+            story.append(Paragraph('适合专业分析：', self.styles['Heading2']))
+            analysis_text = """根据您在职业兴趣倾向、职业性格测评的得分，通过数据统计和分析，将其与常模的数据进行比较，结合国家教育部最新公布的普通高等院校专业目录，我们为您提供匹配度最高的专业大类，专业大类招生是高校招生未来的趋势，根据教育部专业目录要求，专业大类是学科门类下设的一级学科，未来学生选择的专业是专业大类下设的二级学科。不同高校的专业建设情况及人才培养需求不同，因而同一专业大类下设的专业数量和专业方向也不尽相同。在此提醒家长和学生在专业选择上，务必明确目标院校中是否开设意愿就读的专业及您的孩子是否可以报考该专业！"""
+            story.append(Paragraph(analysis_text, self.styles['Normal']))
+            story.append(Spacer(1, 10*mm))
             
-        # 专业分析说明
-        analysis_text = """根据您在职业兴趣倾向、职业性格测评的得分，通过数据统计和分析，将其与常模的数据进行比较，结合国家教育部最新公布的普通高等院校专业目录，我们为您提供匹配度最高的专业大类，专业大类招生是高校招生未来的趋势，根据教育部专业目录要求，专业大类是学科门类下设的一级学科，未来学生选择的专业是专业大类下设的二级学科。不同高校的专业建设情况及人才培养需求不同，因而同一专业大类下设的专业数量和专业方向也不尽相同。在此提醒家长和学生在专业选择上，务必明确目标院校中是否开设意愿就读的专业及您的孩子是否可以报考该专业！"""
-        story.append(Paragraph(analysis_text, self.styles['Normal']))
-        story.append(Spacer(1, 10*mm))
-        
-        # 推荐专业大类
-        story.append(Paragraph('推荐专业大类', self.styles['Heading3']))
-        
-        # 将推荐专业拼接成一行文本
-        if recommended_majors:
-            majors_text = '、'.join([self._ensure_text_safe(major.zymc) for major in recommended_majors])
-            story.append(Paragraph(majors_text, self.styles['Normal']))
-        else:
-            story.append(Paragraph('暂无推荐专业', self.styles['Normal']))
+            # 推荐专业大类
+            story.append(Paragraph('推荐专业大类', self.styles['Heading3']))
+            
+            # 将推荐专业拼接成一行文本
+            if recommended_majors:
+                majors_text = '、'.join([self._ensure_text_safe(major.zymc) for major in recommended_majors])
+                story.append(Paragraph(majors_text, self.styles['Normal']))
+            else:
+                story.append(Paragraph('暂无推荐专业', self.styles['Normal']))
 
     def _add_tips(self, story):
         """添加职业兴趣测评温馨提示"""
         # 章节标题
         self._add_section_title(story, 'Part.3 温馨提示')
-        
-        # 添加星号图标
-        self._add_star_icon(story)
         
         # 温馨提示标题
         story.append(Paragraph('温馨提示', self.styles['Heading3']))
@@ -1228,6 +1296,7 @@ class JobReportService(BasePdfService):
         for note in notes:
             story.append(Paragraph(note, self.styles['List_Item']))
             story.append(Spacer(1, 3*mm))
+
 
 class PdfService:
     """PDF报告生成服务 - 主类"""
@@ -1368,4 +1437,3 @@ class PdfService:
                 return pdf_path
         
         return None
-    
