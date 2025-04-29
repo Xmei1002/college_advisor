@@ -137,7 +137,7 @@ def get_result(student_id):
     # 查询答案记录
     answer = CepingJobAnswer.query.filter_by(student_id=student_id).first()
     if not answer:
-        return APIResponse.error("记录不存在", code=404)
+        return APIResponse.success(message="记录不存在", code=200)
     
     # 重新计算各维度得分
     timu = CepingJobTimu.query.order_by(CepingJobTimu.tid).all()

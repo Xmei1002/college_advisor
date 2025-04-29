@@ -265,8 +265,8 @@
                 <p><strong>学科组合：</strong>{{ student.academic_record.selected_subjects }}</p>
                 <p><strong>分数：</strong>
                     {% if student.academic_record.gaokao_total_score is not none and
-                    student.academic_record.gaokao_total_score >= 0 %}
-                    {{ student.academic_record.gaokao_total_score }}分（高考成绩）
+                    student.academic_record.gaokao_total_score|int >= 0 %}
+                    {{ student.academic_record.gaokao_total_score }}分
                     {% else %}
                     {{ student.academic_record.mock_exam_score }}分（模考成绩）
                     {% endif %}

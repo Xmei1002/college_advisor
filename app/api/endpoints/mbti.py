@@ -204,7 +204,7 @@ def generate_report(student_id):
     # 查询答案记录
     answer = CepingMbtiAnswer.query.filter_by(student_id=student_id).first()
     if not answer:
-        return APIResponse.error("记录不存在", code=404)
+        return APIResponse.success(message="记录不存在", code=200)
     
     # 获取学生信息
     from app.models.studentProfile import Student

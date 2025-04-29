@@ -1,10 +1,12 @@
 from app.services.volunteer.volunteer_analysis_service import AIVolunteerAnalysisService
-import os
 import json
 import copy
 from weasyprint import HTML, CSS
 from datetime import datetime
-from flask import current_app
+from flask import current_app    
+from jinja2 import Environment, FileSystemLoader
+import os
+import base64
 
 def export_volunteer_plan_to_pdf(plan_id, template_name="standard"):
     """
@@ -62,10 +64,7 @@ def get_template(template_name, data):
 
 def render_html_with_template(template, data, theme_color="#3498db", primary_light="rgba(52, 152, 219, 0.15)", primary_dark="#2980b9"):
     """使用Jinja2渲染HTML模板"""
-    
-    from jinja2 import Environment, FileSystemLoader
-    import os
-    import base64
+
     
     # 获取模板所在目录
     template_dir = os.path.dirname(template["html_path"])
@@ -88,7 +87,8 @@ def render_html_with_template(template, data, theme_color="#3498db", primary_lig
         loader=FileSystemLoader(template_dir, encoding='utf-8'),
         extensions=['jinja2.ext.debug']
     )
-    
+    print(f"Cover image base64 length: {len(cover_img_base64)}")
+
     # 渲染HTML
     try:
         template_obj = env.get_template(template_name)
@@ -164,7 +164,8 @@ def generate_pdf_from_html(html, plan_id):
     # 生成PDF
     HTML(temp_html_path).write_pdf(
         pdf_path,
-        stylesheets=[CSS(string="@page { size: A4; margin: 2cm; }")]
+        stylesheets=[CSS(string="@page { size: A4; margin: 2cm; }")],
+        presentational_hints=True  # 这里可能需要添加其他选项，根据需要
     )
     
     # 清理临时文件

@@ -333,6 +333,10 @@ def export_volunteer_plan_pdf(plan_id):
     if not is_planner:
         return APIResponse.error("无权限访问该接口", code=403)
     
+    plan = StudentVolunteerPlan.query.get(plan_id)
+    if not plan:
+        return APIResponse.error("志愿方案不存在", code=404)
+    
     current_app.logger.info(f"开始导出志愿方案 {plan_id} 为PDF文件")
     
     result = export_volunteer_plan_to_pdf(plan_id)
