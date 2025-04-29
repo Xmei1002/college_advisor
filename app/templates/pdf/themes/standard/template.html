@@ -20,6 +20,7 @@
             margin: 1cm;
             margin-top: 2cm;
             margin-bottom: 2cm;
+
             @top-center {
                 content: "高考志愿填报方案";
                 font-size: 9pt;
@@ -281,10 +282,10 @@
         <h2>目录</h2>
         <ul>
             <li><a href="#summary">1. 整体概述</a></li>
-            <li><a href="#plan-table">2. 志愿方案表</a></li>
-            <li><a href="#chasing">3. 冲刺志愿解析</a></li>
-            <li><a href="#stable">4. 稳妥志愿解析</a></li>
-            <li><a href="#safe">5. 保底志愿解析</a></li>
+            <li><a href="#chasing">2. 冲刺志愿解析</a></li>
+            <li><a href="#stable">3. 稳妥志愿解析</a></li>
+            <li><a href="#safe">4. 保底志愿解析</a></li>
+            <li><a href="#plan-table">5. 志愿方案表</a></li>
         </ul>
     </div>
 
@@ -313,9 +314,90 @@
         {% endfor %}
     </div>
 
+    <!-- 冲刺志愿解析部分 -->
+    <div id="chasing" class="section">
+        <h2>2. 冲刺志愿解析</h2>
+
+        {% for analysis in volunteer_plan.category_analyses %}
+        {% if analysis.category_id == 1 %}
+        {% if analysis.content_object %}
+        {% for key, value in analysis.content_object.items() %}
+        {% if key != "志愿层次" %}
+        <div class="analysis-section">
+            <h3>{{ key }}</h3>
+            {% if value is mapping %}
+            {% for subkey, subvalue in value.items() %}
+            <h4>{{ subkey }}</h4>
+            <p>{{ subvalue }}</p>
+            {% endfor %}
+            {% else %}
+            <p>{{ value }}</p>
+            {% endif %}
+        </div>
+        {% endif %}
+        {% endfor %}
+        {% endif %}
+        {% endif %}
+        {% endfor %}
+    </div>
+
+    <!-- 稳妥志愿解析部分 -->
+    <div id="stable" class="section">
+        <h2>3. 稳妥志愿解析</h2>
+
+        {% for analysis in volunteer_plan.category_analyses %}
+        {% if analysis.category_id == 2 %}
+        {% if analysis.content_object %}
+        {% for key, value in analysis.content_object.items() %}
+        {% if key != "志愿层次" %}
+        <div class="analysis-section">
+            <h3>{{ key }}</h3>
+            {% if value is mapping %}
+            {% for subkey, subvalue in value.items() %}
+            <h4>{{ subkey }}</h4>
+            <p>{{ subvalue }}</p>
+            {% endfor %}
+            {% else %}
+            <p>{{ value }}</p>
+            {% endif %}
+        </div>
+        {% endif %}
+        {% endfor %}
+        {% endif %}
+        {% endif %}
+        {% endfor %}
+    </div>
+
+    <!-- 保底志愿解析部分 -->
+    <div id="safe" class="section">
+        <h2>4. 保底志愿解析</h2>
+
+        {% for analysis in volunteer_plan.category_analyses %}
+        {% if analysis.category_id == 3 %}
+        {% if analysis.content_object %}
+        {% for key, value in analysis.content_object.items() %}
+        {% if key != "志愿层次" %}
+        <div class="analysis-section">
+            <h3>{{ key }}</h3>
+            {% if value is mapping %}
+            {% for subkey, subvalue in value.items() %}
+            <h4>{{ subkey }}</h4>
+            <p>{{ subvalue }}</p>
+            {% endfor %}
+            {% else %}
+            <p>{{ value }}</p>
+            {% endif %}
+        </div>
+        {% endif %}
+        {% endfor %}
+        {% endif %}
+        {% endif %}
+        {% endfor %}
+    </div>
+
     <!-- 志愿方案表部分 -->
     <div id="plan-table" class="section">
-        <h2>2. 志愿方案表</h2>
+        <h2>5. 志愿方案表</h2>
         <table class="volunteer-table" style="text-align: center; vertical-align: middle;">
             <thead>
                 <tr>
@@ -411,87 +493,6 @@
                 {% endfor %}
             </tbody>
         </table>
-    </div>
-
-    <!-- 冲刺志愿解析部分 -->
-    <div id="chasing" class="section">
-        <h2>3. 冲刺志愿解析</h2>
-
-        {% for analysis in volunteer_plan.category_analyses %}
-        {% if analysis.category_id == 1 %}
-        {% if analysis.content_object %}
-        {% for key, value in analysis.content_object.items() %}
-        {% if key != "志愿层次" %}
-        <div class="analysis-section">
-            <h3>{{ key }}</h3>
-            {% if value is mapping %}
-            {% for subkey, subvalue in value.items() %}
-            <h4>{{ subkey }}</h4>
-            <p>{{ subvalue }}</p>
-            {% endfor %}
-            {% else %}
-            <p>{{ value }}</p>
-            {% endif %}
-        </div>
-        {% endif %}
-        {% endfor %}
-        {% endif %}
-        {% endif %}
-        {% endfor %}
-    </div>
-
-    <!-- 稳妥志愿解析部分 -->
-    <div id="stable" class="section">
-        <h2>4. 稳妥志愿解析</h2>
-
-        {% for analysis in volunteer_plan.category_analyses %}
-        {% if analysis.category_id == 2 %}
-        {% if analysis.content_object %}
-        {% for key, value in analysis.content_object.items() %}
-        {% if key != "志愿层次" %}
-        <div class="analysis-section">
-            <h3>{{ key }}</h3>
-            {% if value is mapping %}
-            {% for subkey, subvalue in value.items() %}
-            <h4>{{ subkey }}</h4>
-            <p>{{ subvalue }}</p>
-            {% endfor %}
-            {% else %}
-            <p>{{ value }}</p>
-            {% endif %}
-        </div>
-        {% endif %}
-        {% endfor %}
-        {% endif %}
-        {% endif %}
-        {% endfor %}
-    </div>
-
-    <!-- 保底志愿解析部分 -->
-    <div id="safe" class="section">
-        <h2>5. 保底志愿解析</h2>
-
-        {% for analysis in volunteer_plan.category_analyses %}
-        {% if analysis.category_id == 3 %}
-        {% if analysis.content_object %}
-        {% for key, value in analysis.content_object.items() %}
-        {% if key != "志愿层次" %}
-        <div class="analysis-section">
-            <h3>{{ key }}</h3>
-            {% if value is mapping %}
-            {% for subkey, subvalue in value.items() %}
-            <h4>{{ subkey }}</h4>
-            <p>{{ subvalue }}</p>
-            {% endfor %}
-            {% else %}
-            <p>{{ value }}</p>
-            {% endif %}
-        </div>
-        {% endif %}
-        {% endfor %}
-        {% endif %}
-        {% endif %}
-        {% endfor %}
     </div>
 </body>
 

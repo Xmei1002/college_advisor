@@ -40,15 +40,6 @@ def get_template(template_name, data):
     # 直接在app目录下查找templates
     config_path = os.path.join(app_root, "templates", "pdf", "template_config.json")
     
-    # 如果文件不存在，尝试打印调试信息
-    if not os.path.exists(config_path):
-        print(f"配置文件不存在: {config_path}")
-        print(f"尝试列出目录内容: {os.path.dirname(config_path)}")
-        try:
-            print(os.listdir(os.path.dirname(os.path.dirname(config_path))))
-        except:
-            print("无法列出目录内容")
-    
     # 读取模板配置文件
     with open(config_path, "r", encoding="utf-8") as f:
         config = json.load(f)
