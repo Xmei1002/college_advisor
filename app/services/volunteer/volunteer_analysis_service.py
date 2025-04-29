@@ -9,6 +9,9 @@ import json
 from app.services.ai.llm_service import LLMService
 from datetime import datetime, timezone
 from app.models.student_volunteer_plan import VolunteerSpecialty
+from app.models.collegePreference import CollegePreference
+from app.models.studentProfile import Student,AcademicRecord
+from app.services.volunteer.plan_service import VolunteerPlanService
 
 class AIVolunteerAnalysisService:
     """AI志愿解读服务类，专门处理所有与志愿填报相关的AI解析功能"""
@@ -491,3 +494,38 @@ class AIVolunteerAnalysisService:
                 "message": f"分析过程出错: {str(e)}",
                 "error_detail": error_trace
             }
+        
+    @staticmethod
+    def get_report_data(plan_id):
+        """
+        获取导出数据
+        
+        :param plan_id: 志愿方案ID
+        :return: 导出数据
+        """
+        try:
+            # 1. 获取学生ID
+            plan = StudentVolunteerPlan.query.get_or_404(plan_id)
+            student_id = plan.student_id
+            data = {}
+            # 2. 获取学生数据
+            student = Student.query.filter_by(id=student_id).first()
+            # 获取学业记录
+            academic_record = AcademicRecord.query.filter_by(student_id=student_id).first()
+            
+            # 获取大学偏好(已包含职业志向)
+            college_preference = CollegePreference.query.filter_by(student_id=student_id).first()
+            
+            data['student']={
+                'student': student.to_dict(),
+                'academic_record': academic_record.to_dict() if academic_record else None,
+                'college_preference': college_preference.to_dict() if college_preference else None
+            },
+            # 2. 获取志愿方案数据
+            volunteer_plan = VolunteerPlanService.get_volunteer_plan(plan_id)
+            data['volunteer_plan'] = volunteer_plan if volunteer_plan else None
+
+            return data
+        except Exception as e:
+            current_app.logger.error(f"获取导出数据失败: {str(e)}")
+            return False

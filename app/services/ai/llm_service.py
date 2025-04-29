@@ -20,6 +20,8 @@ from app.services.ai.prompt import (
     S_SUBJECT_ANALYZING_PROMPT,
     W_SUBJECT_ANALYZING_PROMPT,
     STRATEGY_ANALYZING_PROMPT,
+    ANALYZING_FULL_PLAN_PROMPT,
+    ANALYZING_CATEGORY_PROMPT
 )
 import json
 from app.core.recommendation.ai_function_call import get_college_detail_by_name,get_colleges_by_major_names,get_colleges_by_location
@@ -254,7 +256,7 @@ class LLMService:
                 messages.insert(0, {"role": "system", "content": system})
 
         current_app.logger.info(f"当前AI大模型为: {provider_name}")
-        current_app.logger.info(f"AI_messages内容: {messages}")
+        # current_app.logger.info(f"AI_messages内容: {messages}")
 
         # 构造API调用参数
         params = {
@@ -313,7 +315,9 @@ class LLMService:
     @classmethod
     def analyzing_full_plan(cls, user_info, volunteer_plan, **kwargs):
         """整体志愿方案解读"""
-        system = cls._get_prompt_by_type(PromptTemplate.TYPE_ANALYZING_FULL_PLAN)
+        # system = cls._get_prompt_by_type(PromptTemplate.TYPE_ANALYZING_FULL_PLAN)
+        system = ANALYZING_FULL_PLAN_PROMPT
+        kwargs["response_format"] = {"type": "json_object"}
         user_input = f"""我的个人档案如下：
             {user_info}
             我的完整志愿方案如下：
@@ -326,7 +330,9 @@ class LLMService:
         cls, user_info, simplified_colleges_json, category, **kwargs
     ):
         """分层志愿解读"""
-        system = cls._get_prompt_by_type(PromptTemplate.TYPE_ANALYZING_CATEGORY)
+        # system = cls._get_prompt_by_type(PromptTemplate.TYPE_ANALYZING_CATEGORY)
+        system = ANALYZING_CATEGORY_PROMPT
+        kwargs["response_format"] = {"type": "json_object"}
         user_input = f"""请对我的【{category}】进行全面而专业的解读分析。当前需要解读的是：【{category}】
 
             我的个人档案如下：

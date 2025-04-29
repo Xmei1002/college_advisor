@@ -215,7 +215,7 @@ def generate_report(student_id):
     # 生成PDF报告
     pdf_service = PdfService()
     pdf_path = pdf_service.generate_mbti_report(answer, student)
-    
+    print(f"PDF Path: {pdf_path};Name: {student.name}")
     return send_file(
         pdf_path,
         as_attachment=True,

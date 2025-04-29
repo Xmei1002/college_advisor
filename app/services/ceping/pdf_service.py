@@ -12,7 +12,6 @@ import time
 import traceback
 from flask import current_app
 from abc import ABC
-import copy 
 
 class BasePdfService(ABC):
     """PDF报告生成基础服务"""

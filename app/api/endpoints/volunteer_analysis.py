@@ -40,26 +40,32 @@ def analyze_volunteer_category(data):
         return APIResponse.error("无权限访问该接口", code=403)
     
     # 检查是否存在已完成或正在处理中的分析
-    has_analysis = VolunteerCategoryAnalysis.query.filter_by(
+    existing_analysis = VolunteerCategoryAnalysis.query.filter_by(
         plan_id=plan_id,
         category_id=category_id
     ).first()
-
-    if has_analysis:
-        if has_analysis.status == VolunteerCategoryAnalysis.STATUS_COMPLETED:
-            return APIResponse.error("该方案当前类别已存在分析结果", code=400)
-        elif has_analysis.status == VolunteerCategoryAnalysis.STATUS_PROCESSING:
-            return APIResponse.error("该方案当前类别正在分析中，请稍后再试", code=400)
     
-    # 创建一条"处理中"状态的记录
     try:
-        new_analysis = VolunteerCategoryAnalysis(
-            plan_id=plan_id,
-            category_id=category_id,
-            status=VolunteerCategoryAnalysis.STATUS_PROCESSING
-        )
-        db.session.add(new_analysis)
-        db.session.commit()
+        if existing_analysis:
+            if existing_analysis.status == VolunteerCategoryAnalysis.STATUS_COMPLETED:
+                return APIResponse.error("该方案当前类别已存在分析结果", code=400)
+            elif existing_analysis.status == VolunteerCategoryAnalysis.STATUS_PROCESSING:
+                return APIResponse.error("该方案当前类别正在分析中，请稍后再试", code=400)
+            else:
+                # 如果状态为FAILED，更新现有记录而不是创建新记录
+                existing_analysis.status = VolunteerCategoryAnalysis.STATUS_PROCESSING
+                existing_analysis.error_message = None
+                db.session.commit()
+                new_analysis = existing_analysis
+        else:
+            # 创建一条"处理中"状态的记录
+            new_analysis = VolunteerCategoryAnalysis(
+                plan_id=plan_id,
+                category_id=category_id,
+                status=VolunteerCategoryAnalysis.STATUS_PROCESSING
+            )
+            db.session.add(new_analysis)
+            db.session.commit()
         
         # 提交异步任务
         task = analyze_volunteer_category_task.delay(plan_id, category_id)
@@ -359,28 +365,6 @@ def create_plan_analysis(plan_id):
     if current_user.user_type != User.USER_TYPE_PLANNER:
         return APIResponse.error("无权限访问该接口", code=403)
 
-    # 创建或更新分析状态，使用VolunteerCategoryAnalysis表，category_id=0表示整体分析
-    analysis = VolunteerCategoryAnalysis.query.filter_by(
-        plan_id=plan_id,
-        category_id=0
-    ).first()
-    
-    if not analysis:
-        analysis = VolunteerCategoryAnalysis(
-            plan_id=plan_id,
-            category_id=0,  # 0表示整体分析
-            status=VolunteerCategoryAnalysis.STATUS_PENDING
-        )
-        db.session.add(analysis)
-    else:
-        analysis.status = VolunteerCategoryAnalysis.STATUS_PENDING
-    
-    try:
-        db.session.commit()
-    except SQLAlchemyError as e:
-        db.session.rollback()
-        return APIResponse.error(str(e), code=500)
-    
     # 异步执行分析任务
     task = analyze_volunteer_plan_task.delay(plan_id)
     

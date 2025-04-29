@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>志愿方案报告</title>
+    <style>
+        /* 基本样式 */
+        body {
+            font-family: "Microsoft YaHei", SimSun, sans-serif;
+            margin: 0;
+            padding: 0;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        /* 页面设置 */
+        @page {
+            size: A4;
+            margin: 1cm;
+            margin-top: 2cm;
+            margin-bottom: 2cm;
+            @top-center {
+                content: "高考志愿填报方案";
+                font-size: 9pt;
+            }
+
+            @bottom-center {
+                content: "第 " counter(page) " 页 / 共 " counter(pages) " 页";
+                font-size: 9pt;
+            }
+        }
+
+        /* 特殊页面设置 */
+        @page :first {
+            size: A4;
+            margin: 0cm;
+
+            @top-center {
+                content: normal;
+            }
+
+            @bottom-center {
+                content: normal;
+            }
+        }
+
+        /* 封面样式 */
+        .cover {
+            height: 29.7cm;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            page-break-after: always;
+        }
+
+        .cover-image {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: -1;
+        }
+
+        .cover h1 {
+            font-size: 32pt;
+            margin-bottom: 2cm;
+            color: #2c3e50;
+        }
+
+        .student-info-corner {
+            width: auto;
+            height: auto;
+            padding: 15px;
+            margin-top: 620px;
+            margin-right: 220px;
+        }
+
+        .student-info-text p {
+            margin: 5px 0;
+            font-size: 22px;
+        }
+
+        /* 目录样式 */
+        .toc {
+            page-break-after: always;
+            padding: 20px;
+        }
+
+        .toc h2 {
+            color: #2c3e50;
+            border-bottom: 2px solid #2c3e50;
+            padding-bottom: 5px;
+        }
+
+        .toc ul {
+            list-style-type: none;
+            padding-left: 20px;
+        }
+
+        .toc li {
+            margin: 10px 0;
+        }
+
+        .toc a {
+            text-decoration: none;
+            color: #3498db;
+        }
+
+        /* 章节样式 */
+        .section {
+            margin-bottom: 30px;
+            page-break-after: always;
+        }
+
+        .section h2 {
+            color: #2c3e50;
+            border-bottom: 2px solid #2c3e50;
+            padding-bottom: 5px;
+        }
+
+        /* 志愿表格样式 */
+        .volunteer-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            font-size: 10pt;
+        }
+
+        .volunteer-table th,
+        .volunteer-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .volunteer-table th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .category-header th {
+            background-color: #3498db;
+            color: white;
+            font-size: 14pt;
+        }
+
+        /* 分析部分样式 */
+        .analysis-section {
+            margin-bottom: 20px;
+            break-inside: avoid;
+        }
+
+        .analysis-section h3 {
+            color: #3498db;
+            border-bottom: 1px solid #3498db;
+            padding-bottom: 3px;
+        }
+
+        .analysis-section h4 {
+            color: #2c3e50;
+            margin-top: 15px;
+            margin-bottom: 5px;
+        }
+
+        .analysis-section p {
+            margin: 5px 0;
+            line-height: 1.5;
+        }
+
+        /* 专业列表样式 */
+        .specialty-list {
+            padding-left: 0;
+            margin: 0;
+            list-style-type: none;
+            font-size: 12px;
+        }
+
+        .specialty-item {
+            margin-bottom: 5px;
+            padding: 3px 5px;
+            background-color: #f8f9fa;
+            border-radius: 3px;
+        }
+
+        .specialty-item.highlight {
+            background-color: #e3f2fd;
+            font-weight: bold;
+        }
+
+        /* 历史数据样式 */
+        .history-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 5px;
+            font-size: 9pt;
+        }
+
+        .history-table th,
+        .history-table td {
+            border: 1px solid #ddd;
+            padding: 3px;
+            text-align: center;
+        }
+
+        .history-table th {
+            background-color: #f5f5f5;
+        }
+
+        /* 其他信息样式 */
+        .college-meta {
+            margin-top: 5px;
+            font-size: 9pt;
+            color: #666;
+        }
+
+        .college-meta span {
+            display: inline-block;
+            margin-right: 10px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 5px;
+            background-color: #e3f2fd;
+            border-radius: 3px;
+            margin-right: 5px;
+            margin-bottom: 5px;
+            font-size: 9pt;
+        }
+
+        /* 其他样式 */
+        .footer {
+            text-align: center;
+            font-size: 9pt;
+            margin-top: 30px;
+            color: #7f8c8d;
+        }
+
+        /* 分页控制 */
+        .page-break {
+            page-break-after: always;
+        }
+
+        .no-break {
+            page-break-inside: avoid;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- 封面部分 -->
+    <div class="cover">
+        <img src="data:image/png;base64,{{ cover_img_base64 }}" alt="封面图片" class="cover-image">
+        <div class="student-info-corner">
+            <div class="student-info-text">
+                <p><strong>姓名：</strong>{{ student.student.name }}</p>
+                <p><strong>性别：</strong>{{ student.student.gender }}</p>
+                <p><strong>学科组合：</strong>{{ student.academic_record.selected_subjects }}</p>
+                <p><strong>分数：</strong>
+                    {% if student.academic_record.gaokao_total_score is not none and
+                    student.academic_record.gaokao_total_score >= 0 %}
+                    {{ student.academic_record.gaokao_total_score }}分（高考成绩）
+                    {% else %}
+                    {{ student.academic_record.mock_exam_score }}分（模考成绩）
+                    {% endif %}
+                </p>
+                <p><strong>生成日期：</strong>{{ render_date }}</p>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- 目录部分 -->
+    <div class="toc">
+        <h2>目录</h2>
+        <ul>
+            <li><a href="#summary">1. 整体概述</a></li>
+            <li><a href="#plan-table">2. 志愿方案表</a></li>
+            <li><a href="#chasing">3. 冲刺志愿解析</a></li>
+            <li><a href="#stable">4. 稳妥志愿解析</a></li>
+            <li><a href="#safe">5. 保底志愿解析</a></li>
+        </ul>
+    </div>
+
+    <!-- 整体概述部分 -->
+    <div id="summary" class="section">
+        <h2>1. 整体概述</h2>
+
+        {% for analysis in volunteer_plan.category_analyses %}
+        {% if analysis.category_id == 0 %}
+        {% if analysis.content_object %}
+        {% for key, value in analysis.content_object.items() %}
+        <div class="analysis-section">
+            <h3>{{ key }}</h3>
+            {% if value is mapping %}
+            {% for subkey, subvalue in value.items() %}
+            <h4>{{ subkey }}</h4>
+            <p>{{ subvalue }}</p>
+            {% endfor %}
+            {% else %}
+            <p>{{ value }}</p>
+            {% endif %}
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% endif %}
+        {% endfor %}
+    </div>
+
+    <!-- 志愿方案表部分 -->
+    <div id="plan-table" class="section">
+        <h2>2. 志愿方案表</h2>
+        <table class="volunteer-table" style="text-align: center; vertical-align: middle;">
+            <thead>
+                <tr>
+                    <th style="vertical-align: middle;">志愿号</th>
+                    <th style="vertical-align: middle;">院校信息</th>
+                    <th style="vertical-align: middle;">分数信息</th>
+                    <th style="vertical-align: middle;">招生计划</th>
+                    <th style="vertical-align: middle;">院校特色</th>
+                    <th style="vertical-align: middle;">推荐专业</th>
+                    <th style="vertical-align: middle;">类别</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for college in volunteer_plan.colleges %}
+                <tr class="no-break">
+                    <td rowspan="2" style="text-align: center; vertical-align: middle;">{{ college.volunteer_index }}
+                    </td>
+                    <td style="vertical-align: middle;">
+                        <strong>{{ college.college_name }}（代号：{{ college.uncode }}）</strong>
+                        <div class="college-meta">
+                            <span>{{ college.area_name }}</span>
+                            <span>{{ college.nature }}</span>
+                            <span>{{ college.school_type_text }}</span>
+                        </div>
+                    </td>
+                    <td style="vertical-align: middle;">
+                        <div>预测分数: {{ college.prediction_score }}</div>
+                        <div>分差: {{ college.score_diff }}</div>
+                    </td>
+                    <td style="vertical-align: middle;">
+                        <div>计划数: {{ college.plan_number }}</div>
+                        <div>学费: {{ college.min_tuition }}-{{ college.max_tuition }}元</div>
+                    </td>
+                    <td style="vertical-align: middle;">
+                        {% if college.tese_text %}
+                        {% for tese in college.tese_text %}
+                        <span class="badge">{{ tese }}</span>
+                        {% endfor %}
+                        {% endif %}
+                    </td>
+                    <td style="vertical-align: middle;">
+                        <ul class="specialty-list">
+                            {% for specialty in college.specialties %}
+                            <li>
+                                {{ specialty.specialty_name }}（ 预测: {{ specialty.prediction_score }}分）
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </td>
+                    <td style="vertical-align: middle;">
+                        {% if college.category_id == 1 %}
+                        <span class="badge">冲刺</span>
+                        {% elif college.category_id == 2 %}
+                        <span class="badge">稳妥</span>
+                        {% elif college.category_id == 3 %}
+                        <span class="badge">保底</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                <tr class="no-break">
+                    <td colspan="6" style="vertical-align: middle;">
+                        <strong>历年录取分数:</strong>
+                        {% if college.history %}
+                        <table class="history-table" style="text-align: center; margin: 0 auto;">
+                            <thead>
+                                <tr>
+                                    <th style="vertical-align: middle;">年份</th>
+                                    <th style="vertical-align: middle;">录取分</th>
+                                    <th style="vertical-align: middle;">省控线</th>
+                                    <th style="vertical-align: middle;">线差</th>
+                                    <th style="vertical-align: middle;">位次</th>
+                                    <th style="vertical-align: middle;">计划数</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for record in college.history %}
+                                <tr>
+                                    <td style="vertical-align: middle;">{{ record.year }}</td>
+                                    <td style="vertical-align: middle;">{{ record.admission_score }}</td>
+                                    <td style="vertical-align: middle;">{{ record.provincial_line }}</td>
+                                    <td style="vertical-align: middle;">{{ record.province_score_diff }}</td>
+                                    <td style="vertical-align: middle;">{{ record.rank }}</td>
+                                    <td style="vertical-align: middle;">{{ record.plan_number }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        {% else %}
+                        <p>暂无历史数据</p>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 冲刺志愿解析部分 -->
+    <div id="chasing" class="section">
+        <h2>3. 冲刺志愿解析</h2>
+
+        {% for analysis in volunteer_plan.category_analyses %}
+        {% if analysis.category_id == 1 %}
+        {% if analysis.content_object %}
+        {% for key, value in analysis.content_object.items() %}
+        {% if key != "志愿层次" %}
+        <div class="analysis-section">
+            <h3>{{ key }}</h3>
+            {% if value is mapping %}
+            {% for subkey, subvalue in value.items() %}
+            <h4>{{ subkey }}</h4>
+            <p>{{ subvalue }}</p>
+            {% endfor %}
+            {% else %}
+            <p>{{ value }}</p>
+            {% endif %}
+        </div>
+        {% endif %}
+        {% endfor %}
+        {% endif %}
+        {% endif %}
+        {% endfor %}
+    </div>
+
+    <!-- 稳妥志愿解析部分 -->
+    <div id="stable" class="section">
+        <h2>4. 稳妥志愿解析</h2>
+
+        {% for analysis in volunteer_plan.category_analyses %}
+        {% if analysis.category_id == 2 %}
+        {% if analysis.content_object %}
+        {% for key, value in analysis.content_object.items() %}
+        {% if key != "志愿层次" %}
+        <div class="analysis-section">
+            <h3>{{ key }}</h3>
+            {% if value is mapping %}
+            {% for subkey, subvalue in value.items() %}
+            <h4>{{ subkey }}</h4>
+            <p>{{ subvalue }}</p>
+            {% endfor %}
+            {% else %}
+            <p>{{ value }}</p>
+            {% endif %}
+        </div>
+        {% endif %}
+        {% endfor %}
+        {% endif %}
+        {% endif %}
+        {% endfor %}
+    </div>
+
+    <!-- 保底志愿解析部分 -->
+    <div id="safe" class="section">
+        <h2>5. 保底志愿解析</h2>
+
+        {% for analysis in volunteer_plan.category_analyses %}
+        {% if analysis.category_id == 3 %}
+        {% if analysis.content_object %}
+        {% for key, value in analysis.content_object.items() %}
+        {% if key != "志愿层次" %}
+        <div class="analysis-section">
+            <h3>{{ key }}</h3>
+            {% if value is mapping %}
+            {% for subkey, subvalue in value.items() %}
+            <h4>{{ subkey }}</h4>
+            <p>{{ subvalue }}</p>
+            {% endfor %}
+            {% else %}
+            <p>{{ value }}</p>
+            {% endif %}
+        </div>
+        {% endif %}
+        {% endfor %}
+        {% endif %}
+        {% endif %}
+        {% endfor %}
+    </div>
+</body>
+
+</html>

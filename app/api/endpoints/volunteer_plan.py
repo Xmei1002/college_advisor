@@ -21,7 +21,8 @@ from app.services.volunteer.consultation_status_service import update_student_pl
 from flask import session
 import time
 from flask import send_file
-
+from app.services.volunteer.export import export_volunteer_plan_to_pdf
+from app.services.volunteer.volunteer_analysis_service import AIVolunteerAnalysisService
 # 创建志愿方案蓝图
 volunteer_plan_bp = Blueprint(
     'volunteer_plan', 
@@ -264,7 +265,6 @@ def update_volunteer_plan(data, plan_id):
         message="志愿方案更新成功"
     )
 
-
 @volunteer_plan_bp.route('/export/<int:plan_id>', methods=['GET'])
 @jwt_required()
 @api_error_handler
@@ -291,34 +291,7 @@ def export_volunteer_plan(plan_id):
             message=result.get('error', '导出志愿方案失败'),  # 使用 get 方法避免键不存在的情况
             code=500
         )
-
-@volunteer_plan_bp.route('/export_analysis/<int:plan_id>', methods=['GET'])
-@jwt_required()
-@api_error_handler
-def export_volunteer_plan_analysis(plan_id):
-    """导出志愿方案解析为Excel文件"""
     
-    # 添加日志记录，帮助调试
-    current_app.logger.info(f"开始导出志愿方案解析 {plan_id} 为Excel文件")
-    
-    result = VolunteerPlanService.export_volunteer_plan_analysis_to_excel(plan_id)
-    
-    # 记录结果
-    current_app.logger.info(f"导出解析结果: {result}")
-    
-    if result['success']:
-        return send_file(
-            result['filepath'],
-            as_attachment=True,
-            download_name=result['filename'],
-            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        )
-    else:
-        return APIResponse.error(
-            message=result.get('error', '导出志愿方案解析失败'),
-            code=500
-        )
-
 @volunteer_plan_bp.route('/export_analysis_word/<int:plan_id>', methods=['GET'])
 @jwt_required()
 @api_error_handler
@@ -343,6 +316,70 @@ def export_volunteer_plan_analysis_word(plan_id):
             message=result.get('error', '导出志愿方案解析Word失败'),
             code=500
         )
+
+@volunteer_plan_bp.route('/export_pdf/<int:plan_id>', methods=['GET'])
+@jwt_required()
+@api_error_handler
+@volunteer_plan_bp.doc(deprecated=True, description="该接口暂不可用")
+def export_volunteer_plan_pdf(plan_id):
+    """
+    导出志愿方案为PDF文件，包含封面(学生信息)、方案表和解析内容
+    """
+    current_user_id = get_jwt_identity()
+    current_user = User.query.get_or_404(current_user_id)
+    
+    # 检查用户类型权限 - 只有规划师可以访问该接口
+    is_planner = current_user.user_type == User.USER_TYPE_PLANNER
+    if not is_planner:
+        return APIResponse.error("无权限访问该接口", code=403)
+    
+    current_app.logger.info(f"开始导出志愿方案 {plan_id} 为PDF文件")
+    
+    result = export_volunteer_plan_to_pdf(plan_id)
+    
+    current_app.logger.info(f"导出PDF结果: {result}")
+    
+    if result['success']:
+        return send_file(
+            result['filepath'],
+            as_attachment=True,
+            download_name=result['filename'],
+            mimetype='application/pdf'
+        )
+    else:
+        return APIResponse.error(
+            message=result.get('error', '导出志愿方案PDF失败'),
+            code=500
+        )
+
+@volunteer_plan_bp.route('/get_full_report/<int:plan_id>', methods=['GET'])
+@jwt_required()
+@api_error_handler
+def export_volunteer_plan_pdf(plan_id):
+    """
+    获取完整报告的所有信息
+    """
+    current_user_id = get_jwt_identity()
+    current_user = User.query.get_or_404(current_user_id)
+    
+    # 检查用户类型权限 - 只有规划师可以访问该接口
+    is_planner = current_user.user_type == User.USER_TYPE_PLANNER
+    if not is_planner:
+        return APIResponse.error("无权限访问该接口", code=403)
+    
+    result = AIVolunteerAnalysisService.get_report_data(plan_id)
+    
+    if result:
+        return APIResponse.success(
+            data=result,
+            message="获取完整报告数据成功"
+        )
+    else:
+        return APIResponse.error(
+            message='获取完整报告数据失败',
+            code=500
+        )   
+
 
 # @volunteer_plan_bp.route('/export_analysis_pdf/<int:plan_id>', methods=['GET'])
 # @jwt_required()

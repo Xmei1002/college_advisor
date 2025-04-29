@@ -94,13 +94,19 @@ class AcademicRecordSchema(Schema):
     mock_exam_score = fields.String(description="模考成绩")
     @validates_schema
     def validate_scores(self, data, **kwargs):
-        """验证模考和高考成绩必须至少有一个存在且大于0"""
+        """验证模考和高考成绩必须至少有一个存在且不为0"""
         gaokao_score = data.get('gaokao_total_score')
         mock_score = data.get('mock_exam_score')
         
-        # 检查是否至少有一项成绩存在
-        if not (gaokao_score or mock_score):
-            raise ValidationError("高考成绩和模考成绩必须至少填写一项")
+        # 检查gaokao_score是否有效(不为空且不为"0")
+        valid_gaokao = gaokao_score and gaokao_score != "0"
+        
+        # 检查mock_score是否有效(不为空且不为"0")
+        valid_mock = mock_score and mock_score != "0"
+        
+        # 如果两者都无效，抛出验证错误
+        if not (valid_gaokao or valid_mock):
+            raise ValidationError("高考成绩和模考成绩必须至少填写一项且不为0")
         
         
 class StudentResponseSchema(Schema):
