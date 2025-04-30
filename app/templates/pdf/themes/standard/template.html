@@ -7,7 +7,7 @@
     <style>
         /* 基本样式 */
         body {
-            font-family: "Noto Sans CJK SC", "WenQuanYi Micro Hei", "Microsoft YaHei", SimSun, sans-serif;
+            font-family: "Microsoft YaHei", sans-serif;
             margin: 0;
             padding: 0;
             color: #333;
@@ -143,7 +143,7 @@
 
         .volunteer-table th {
             background-color: #f2f2f2;
-            font-weight: bold;
+            font-weight: 600;
             text-align: center;
         }
 
@@ -193,7 +193,7 @@
 
         .specialty-item.highlight {
             background-color: #e3f2fd;
-            font-weight: bold;
+            font-weight: 600;
         }
 
         /* 历史数据样式 */
@@ -404,22 +404,22 @@
             <thead>
                 <tr>
                     <th
-                        style="vertical-align: middle; border: 1px solid #ddd; padding: 6px; background-color: #f2f2f2; font-weight: bold; text-align: center; width: 8%;">
+                        style="vertical-align: middle; border: 1px solid #ddd; padding: 6px; background-color: #f2f2f2; font-weight: 600; text-align: center; width: 8%;">
                         志愿序号</th>
                     <th
-                        style="vertical-align: middle; border: 1px solid #ddd; padding: 6px; background-color: #f2f2f2; font-weight: bold; text-align: center; width: 25%;">
+                        style="vertical-align: middle; border: 1px solid #ddd; padding: 6px; background-color: #f2f2f2; font-weight: 600; text-align: center; width: 25%;">
                         学校信息</th>
                     <th
-                        style="vertical-align: middle; border: 1px solid #ddd; padding: 6px; background-color: #f2f2f2; font-weight: bold; text-align: center; width: 8%;">
+                        style="vertical-align: middle; border: 1px solid #ddd; padding: 6px; background-color: #f2f2f2; font-weight: 600; text-align: center; width: 8%;">
                         计划</th>
                     <th
-                        style="vertical-align: middle; border: 1px solid #ddd; padding: 6px; background-color: #f2f2f2; font-weight: bold; text-align: center; width: 28%;">
+                        style="vertical-align: middle; border: 1px solid #ddd; padding: 6px; background-color: #f2f2f2; font-weight: 600; text-align: center; width: 28%;">
                         推荐专业</th>
                     <th
-                        style="vertical-align: middle; border: 1px solid #ddd; padding: 6px; background-color: #f2f2f2; font-weight: bold; text-align: center; width: 23%;">
+                        style="vertical-align: middle; border: 1px solid #ddd; padding: 6px; background-color: #f2f2f2; font-weight: 600; text-align: center; width: 23%;">
                         历年数据(2022-2024)</th>
                     <th
-                        style="vertical-align: middle; border: 1px solid #ddd; padding: 6px; background-color: #f2f2f2; font-weight: bold; text-align: center; width: 8%;">
+                        style="vertical-align: middle; border: 1px solid #ddd; padding: 6px; background-color: #f2f2f2; font-weight: 600; text-align: center; width: 8%;">
                         是否同意调剂</th>
                 </tr>
             </thead>
@@ -449,7 +449,8 @@
                             <strong>代号:</strong>{{college.uncode }}
                         </div>
                         <div style="margin-top: 2px; font-size: 8pt;">
-                            <span ><strong>性质:</strong>{{college.nature }}   类型:</strong>{{ college.school_type_text}}</span>
+                            <span><strong>性质:</strong>{{college.nature }} <strong>类型:</strong></strong>{{
+                                college.school_type_text}}</span>
                         </div>
                         <div style="margin-top: 2px; font-size: 8pt;">
                             <strong>学费:</strong>{{college.min_tuition }}-{{ college.max_tuition }}元
@@ -468,7 +469,7 @@
                         </div>
                         {% endif %}
                         {% if college.subject_requirements %}
-                        <div style="margin-top: 2px; font-size: 7pt;">
+                        <div style="margin-top: 2px; font-size: 8pt;">
                             <strong>必选:</strong>
                             {% if college.subject_requirements.wu == 1 %}<span style="margin-right: 3px;">物理</span>{%
                             endif %}

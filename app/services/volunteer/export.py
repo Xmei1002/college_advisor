@@ -7,6 +7,29 @@ from flask import current_app
 from jinja2 import Environment, FileSystemLoader
 import os
 import base64
+from weasyprint.text.fonts import FontConfiguration
+
+_font_config = None
+
+def get_font_config():
+    """获取或创建字体配置"""
+    global _font_config
+    if _font_config is None:
+        # 创建新的字体配置
+        _font_config = FontConfiguration()
+        
+        # 获取字体文件的绝对路径
+        app_root = current_app.root_path
+        regular_font_path = os.path.join(app_root, "static", "fonts", "msyh.ttf")
+        bold_font_path = os.path.join(app_root, "static", "fonts", "msyhbd.ttf")
+        
+        # 验证字体文件存在
+        if os.path.exists(regular_font_path) and os.path.exists(bold_font_path):
+            current_app.logger.info("微软雅黑字体文件找到并已加载")
+        else:
+            current_app.logger.warning("微软雅黑字体文件未找到，将使用系统字体")
+    
+    return _font_config
 
 def export_volunteer_plan_to_pdf(plan_id, template_name="standard"):
     """
@@ -142,12 +165,7 @@ def generate_pdf_from_html(html, plan_id):
     # 获取应用根目录
     app_root = current_app.root_path
     
-    # 创建临时HTML文件（使用绝对路径）
-    temp_html_path = os.path.join(app_root, f"temp_{plan_id}.html")
-    with open(temp_html_path, "w", encoding="utf-8") as f:
-        f.write(html)
-    
-    # 确保导出目录存在（使用绝对路径）
+    # 确保导出目录存在
     export_dir = os.path.join(app_root, "static", "reports")
     os.makedirs(export_dir, exist_ok=True)
     
@@ -156,14 +174,42 @@ def generate_pdf_from_html(html, plan_id):
     pdf_filename = f"volunteer_plan_{plan_id}_{timestamp}.pdf"
     pdf_path = os.path.join(export_dir, pdf_filename)
     
-    # 生成PDF
-    HTML(temp_html_path).write_pdf(
-        pdf_path,
-        stylesheets=[CSS(string="@page { size: A4; margin: 2cm; }")],
-        presentational_hints=True  # 这里可能需要添加其他选项，根据需要
+    # 获取字体配置
+    font_config = get_font_config()
+    
+    # 定义CSS
+    css_string = """
+    @font-face {
+        font-family: 'Microsoft YaHei';
+        src: url('%s') format('truetype');
+        font-weight: normal;
+    }
+    @font-face {
+        font-family: 'Microsoft YaHei';
+        src: url('%s') format('truetype');
+        font-weight: bold;
+    }
+    body {
+        font-family: 'Microsoft YaHei', sans-serif;
+    }
+    @page { size: A4; margin: 2cm; }
+    """ % (
+        os.path.join(app_root, "static", "fonts", "msyh.ttf"),
+        os.path.join(app_root, "static", "fonts", "msyhbd.ttf")
     )
     
-    # 清理临时文件
-    os.remove(temp_html_path)
+    try:
+        # 直接使用HTML字符串生成PDF，不再需要临时文件
+        HTML(string=html, base_url=app_root).write_pdf(
+            pdf_path,
+            stylesheets=[CSS(string=css_string)],
+            font_config=font_config,
+            presentational_hints=True,
+            optimize_size=('fonts', 'images')  # 添加优化选项
+        )
+        current_app.logger.info(f"PDF生成成功: {pdf_path}")
+    except Exception as e:
+        current_app.logger.error(f"PDF生成失败: {str(e)}")
+        raise
     
     return pdf_path
