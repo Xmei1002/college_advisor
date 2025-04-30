@@ -40,19 +40,28 @@ def list_planners(query_args):
         
     page = query_args.get('page', 1)
     per_page = query_args.get('per_page', 10)
-    keyword = query_args.get('keyword', '')  # 修改这里，使用keyword而不是search
+    keyword = query_args.get('keyword', '')
     
-    # 构建查询
-    query = User.query.filter_by(user_type=User.USER_TYPE_PLANNER)
+    # 构建查询，使用join关联PlannerInfo表
+    query = User.query.outerjoin(PlannerInfo, User.id == PlannerInfo.user_id)
     
-    # 如果有搜索关键词，添加过滤条件
+    # 基本条件：必须是规划师类型
+    query = query.filter(User.user_type == User.USER_TYPE_PLANNER)
+    
+    # 如果有搜索关键词，添加多个过滤条件
     if keyword:
-        query = query.filter(User.username.ilike(f'%{keyword}%'))
+        # 使用or_组合多个搜索条件
+        search_conditions = [
+            User.username.ilike(f'%{keyword}%'),    # 用户名
+            PlannerInfo.name.ilike(f'%{keyword}%'),  # 规划师姓名
+            PlannerInfo.phone.ilike(f'%{keyword}%')  # 规划师电话
+        ]
+        query = query.filter(db.or_(*search_conditions))
     
     # 获取分页结果
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
     
-    # 构建响应数据，直接使用 to_dict 方法
+    # 构建响应数据
     items = [planner.to_dict() for planner in pagination.items]
     
     return APIResponse.success(
@@ -139,7 +148,8 @@ def create_planner(data):
         planner_info = PlannerInfo(
             user_id=planner.id,
             phone=data.get('phone', ''),
-            address=data.get('address', '')
+            address=data.get('address', ''),
+            name=data.get('name', ''),  # 添加姓名字段
         )
         db.session.add(planner_info)
         db.session.commit()
@@ -204,6 +214,9 @@ def update_planner(data, planner_id):
             
         if 'address' in data and data['address'] is not None:
             planner_info.address = data['address']
+
+        if 'name' in data and data['name'] is not None:
+            planner_info.name = data['name']
         
         db.session.commit()
         

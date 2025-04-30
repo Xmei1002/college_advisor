@@ -7,7 +7,7 @@
     <style>
         /* 基本样式 */
         body {
-            font-family: "Microsoft YaHei", SimSun, sans-serif;
+            font-family: "Noto Sans CJK SC", "WenQuanYi Micro Hei", "Microsoft YaHei", SimSun, sans-serif;
             margin: 0;
             padding: 0;
             color: #333;
@@ -48,41 +48,43 @@
 
         /* 封面样式 */
         .cover {
+            position: relative;
+            /* 添加这行，让子元素可以相对它绝对定位 */
             height: 29.7cm;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            page-break-after: always;
+            width: 21cm;
+            /* 明确设置宽度，A4纸尺寸 */
+            background-image: url('data:image/png;base64,{{ cover_img_base64 }}');
+            background-size: cover;
+            background-position: center;
+            margin: 0 auto;
+            /* 居中显示 */
         }
 
-        .cover-image {
+        .student-info-corner {
             position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            z-index: -1;
+            bottom: 100px;
+            left: 100px;
+            /* 距离左侧40px */
+            width: 300px;
+            padding: 15px;
+            background-color: rgba(255, 255, 255, 0.8);
+            /* 半透明背景，确保文字可读 */
+            border-radius: 8px;
+            /* 圆角效果 */
+        }
+
+        .student-info-text p {
+            margin: 5px 0;
+            font-size: 20px;
+            /* 略微调小字体 */
+            color: #000;
+            /* 确保文字颜色清晰可见 */
         }
 
         .cover h1 {
             font-size: 32pt;
             margin-bottom: 2cm;
             color: #2c3e50;
-        }
-
-        .student-info-corner {
-            width: auto;
-            height: auto;
-            padding: 15px;
-            margin-top: 620px;
-            margin-right: 220px;
-        }
-
-        .student-info-text p {
-            margin: 5px 0;
-            font-size: 22px;
         }
 
         /* 目录样式 */
@@ -257,7 +259,6 @@
 <body>
     <!-- 封面部分 -->
     <div class="cover">
-        <img src="data:image/png;base64,{{ cover_img_base64 }}" alt="封面图片" class="cover-image">
         <div class="student-info-corner">
             <div class="student-info-text">
                 <p><strong>姓名：</strong>{{ student.student.name }}</p>

@@ -62,10 +62,9 @@ def get_template(template_name, data):
         "template_name": template_name
     }
 
-def render_html_with_template(template, data, theme_color="#3498db", primary_light="rgba(52, 152, 219, 0.15)", primary_dark="#2980b9"):
+def render_html_with_template(template, data):
     """使用Jinja2渲染HTML模板"""
 
-    
     # 获取模板所在目录
     template_dir = os.path.dirname(template["html_path"])
     template_name = os.path.basename(template["html_path"])
@@ -99,11 +98,7 @@ def render_html_with_template(template, data, theme_color="#3498db", primary_lig
             assets_path=template["assets_path"],
             cover_img_base64=cover_img_base64,
             render_date=datetime.now().strftime('%Y-%m-%d'),
-            theme_color=theme_color,
-            primary_light=primary_light,
-            primary_dark=primary_dark
         )
-        
         return html
     except Exception as e:
         print(f"渲染模板时出错: {str(e)}")

@@ -26,6 +26,7 @@ class PlannerInfoSchema(Schema):
     id = fields.Integer(description="信息ID")
     user_id = fields.Integer(description="用户ID")
     phone = fields.String(description="联系电话")
+    name = fields.String(description="姓名")
     address = fields.String(description="地址")
     created_at = fields.DateTime(description="创建时间")
     updated_at = fields.DateTime(description="更新时间")

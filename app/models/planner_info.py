@@ -10,6 +10,7 @@ class PlannerInfo(Base):
     user_id = db.Column(db.Integer, db.ForeignKey(f'{User.__tablename__}.id'), unique=True, nullable=False, comment='关联的用户ID')
     phone = db.Column(db.String(20), comment='联系电话')
     address = db.Column(db.String(255), comment='地址')
+    name = db.Column(db.String(50), comment='姓名')
     
     # 定义关系
     user = db.relationship('User', backref=db.backref('planner_info', uselist=False, lazy='joined'))
@@ -24,6 +25,7 @@ class PlannerInfo(Base):
             'user_id': self.user_id,
             'phone': self.phone,
             'address': self.address,
+            'name': self.name,
             'created_at': self.created_at,
             'updated_at': self.updated_at
         }
