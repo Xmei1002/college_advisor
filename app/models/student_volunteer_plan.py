@@ -12,7 +12,7 @@ class StudentVolunteerPlan(Base):
     GENERATION_STATUS_FAILED = 'failed'         # 生成失败
     
     # 基础字段继承自Base模型(id, created_at, updated_at)
-    student_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, comment='学生ID')
+    student_id = db.Column(db.Integer, db.ForeignKey('students.id'), nullable=False, comment='学生ID')
     planner_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, comment='规划师ID')
     version = db.Column(db.Integer, default=1, nullable=False, comment='版本号')
     is_current = db.Column(db.Boolean, default=True, nullable=False, comment='是否当前版本')
