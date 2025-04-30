@@ -33,6 +33,9 @@ planner_management_bp = Blueprint(
 @jwt_required()
 @api_error_handler
 def list_planners(query_args):
+    """
+    获取规划师列表（需要管理员权限）
+    """
     user_id = get_jwt_identity()
     user = User.query.get_or_404(int(user_id))
     if user.user_type != User.USER_TYPE_ADMIN:

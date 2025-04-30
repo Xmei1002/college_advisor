@@ -7,6 +7,7 @@ class CreatePlannerManagementSchema(Schema):
     """创建规划师Schema"""
     username = fields.String(required=True, description="用户名")
     password = fields.String(required=True, description="密码")
+    name = fields.String(description="姓名")
     phone = fields.String(description="联系电话")
     address = fields.String(description="地址")
     institution_id = fields.Integer(description="所属机构ID")  # 添加机构ID字段
@@ -16,6 +17,7 @@ class UpdatePlannerManagementSchema(Schema):
     """更新规划师Schema"""
     username = fields.String(description="用户名")
     password = fields.String(description="密码")
+    name = fields.String(description="姓名")
     phone = fields.String(description="联系电话")
     address = fields.String(description="地址")
     status = fields.String(description="账号状态", validate=validate.OneOf([User.USER_STATUS_ACTIVE, User.USER_STATUS_INACTIVE]))
