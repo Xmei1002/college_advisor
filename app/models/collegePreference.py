@@ -42,11 +42,11 @@ class CollegePreference(Base):
     
     # ===== 从 ApplicationRestrictions 模型合并的字段 =====
     # 报考限制字段
-    accept_nonchangeable_major = db.Column(db.Boolean, nullable=True, comment='是否接受不可转专业中外合办专业')
-    has_art_foundation = db.Column(db.Boolean, nullable=True, comment='是否具备美术基础')
-    accept_overseas_study = db.Column(db.Boolean, nullable=True, comment='是否接受大学期间需出国就读')
-    accept_high_fee_increase = db.Column(db.Boolean, nullable=True, comment='是否接受学费刺客专业')
-    accept_dual_city_arrangement = db.Column(db.Boolean, nullable=True, comment='是否接受在两个城市上学安排')
+    accept_nonchangeable_major = db.Column(db.Boolean, nullable=True, default=False, comment='是否接受不可转专业中外合办专业')
+    has_art_foundation = db.Column(db.Boolean, nullable=True, default=False, comment='是否具备美术基础')
+    accept_overseas_study = db.Column(db.Boolean, nullable=True, default=False, comment='是否接受大学期间需出国就读')
+    accept_high_fee_increase = db.Column(db.Boolean, nullable=True, default=False, comment='是否接受学费刺客专业')
+    accept_dual_city_arrangement = db.Column(db.Boolean, nullable=True, default=False, comment='是否接受在两个城市上学安排')
     
     # ===== 从 CareerPreference 模型合并的字段 =====
     career_direction = db.Column(db.String(100), comment='就业发展方向，如金融,教师,医生等')

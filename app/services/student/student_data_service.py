@@ -454,11 +454,11 @@ class StudentDataService:
                 
             # 报考限制信息
             text_parts.append("\n【报考限制条件】")
-            text_parts.append(f"接受不可转专业中外合办专业：{StudentDataService.get_preference_text(college_pref.accept_nonchangeable_major)}")
-            text_parts.append(f"具备美术基础：{StudentDataService.get_preference_text(college_pref.has_art_foundation)}")
-            text_parts.append(f"接受大学期间需出国就读：{StudentDataService.get_preference_text(college_pref.accept_overseas_study)}")
-            text_parts.append(f"接受学费刺客专业：{StudentDataService.get_preference_text(college_pref.accept_high_fee_increase)}")
-            text_parts.append(f"接受在两个城市上学安排：{StudentDataService.get_preference_text(college_pref.accept_dual_city_arrangement)}")
+            text_parts.append(f"接受不可转专业中外合办专业：{college_pref.accept_nonchangeable_major}")
+            text_parts.append(f"具备美术基础：{college_pref.has_art_foundation}")
+            text_parts.append(f"接受大学期间需出国就读：{college_pref.accept_overseas_study}")
+            text_parts.append(f"接受学费刺客专业：{college_pref.accept_high_fee_increase}")
+            text_parts.append(f"接受在两个城市上学安排：{college_pref.accept_dual_city_arrangement}")
             
             if college_pref.application_preference:
                 text_parts.append("\n【报考倾向详情】")
@@ -469,11 +469,6 @@ class StudentDataService:
         # 合并所有文本部分
         return "\n".join(text_parts)
     
-    @staticmethod
-    def get_preference_text(value):
-        if value is None:
-            return "未填写"
-        return "是" if value else "否"
     
     @staticmethod
     def generate_student_data_snapshot(student_id):

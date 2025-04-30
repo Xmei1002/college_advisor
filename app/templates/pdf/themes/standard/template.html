@@ -399,96 +399,128 @@
     <!-- 志愿方案表部分 -->
     <div id="plan-table" class="section">
         <h2>5. 志愿方案表</h2>
-        <table class="volunteer-table" style="text-align: center; vertical-align: middle;">
+        <table class="volunteer-table"
+            style="text-align: center; vertical-align: middle; width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 10pt;">
             <thead>
                 <tr>
-                    <th style="vertical-align: middle;">志愿号</th>
-                    <th style="vertical-align: middle;">院校信息</th>
-                    <th style="vertical-align: middle;">分数信息</th>
-                    <th style="vertical-align: middle;">招生计划</th>
-                    <th style="vertical-align: middle;">院校特色</th>
-                    <th style="vertical-align: middle;">推荐专业</th>
-                    <th style="vertical-align: middle;">类别</th>
+                    <th
+                        style="vertical-align: middle; border: 1px solid #ddd; padding: 6px; background-color: #f2f2f2; font-weight: bold; text-align: center; width: 8%;">
+                        志愿序号</th>
+                    <th
+                        style="vertical-align: middle; border: 1px solid #ddd; padding: 6px; background-color: #f2f2f2; font-weight: bold; text-align: center; width: 25%;">
+                        学校信息</th>
+                    <th
+                        style="vertical-align: middle; border: 1px solid #ddd; padding: 6px; background-color: #f2f2f2; font-weight: bold; text-align: center; width: 8%;">
+                        计划</th>
+                    <th
+                        style="vertical-align: middle; border: 1px solid #ddd; padding: 6px; background-color: #f2f2f2; font-weight: bold; text-align: center; width: 28%;">
+                        推荐专业</th>
+                    <th
+                        style="vertical-align: middle; border: 1px solid #ddd; padding: 6px; background-color: #f2f2f2; font-weight: bold; text-align: center; width: 23%;">
+                        历年数据(2022-2024)</th>
+                    <th
+                        style="vertical-align: middle; border: 1px solid #ddd; padding: 6px; background-color: #f2f2f2; font-weight: bold; text-align: center; width: 8%;">
+                        是否同意调剂</th>
                 </tr>
             </thead>
             <tbody>
                 {% for college in volunteer_plan.colleges %}
                 <tr class="no-break">
-                    <td rowspan="2" style="text-align: center; vertical-align: middle;">{{ college.volunteer_index }}
-                    </td>
-                    <td style="vertical-align: middle;">
-                        <strong>{{ college.college_name }}（代号：{{ college.uncode }}）</strong>
-                        <div class="college-meta">
-                            <span>{{ college.area_name }}</span>
-                            <span>{{ college.nature }}</span>
-                            <span>{{ college.school_type_text }}</span>
+                    <td style="text-align: center; vertical-align: middle; border: 1px solid #ddd; padding: 6px;">
+                        <div><strong>第{{ college.volunteer_index }}志愿</strong></div>
+                        <div style="margin-top: 3px;">
+                            {% if college.category_id == 1 %}
+                            <span
+                                style="background-color: #FF9966; padding: 1px 4px; border-radius: 3px; font-size: 8pt; display: inline-block;">冲刺</span>
+                            {% elif college.category_id == 2 %}
+                            <span
+                                style="background-color: #99CCFF; padding: 1px 4px; border-radius: 3px; font-size: 8pt; display: inline-block;">稳妥</span>
+                            {% elif college.category_id == 3 %}
+                            <span
+                                style="background-color: #99CC99; padding: 1px 4px; border-radius: 3px; font-size: 8pt; display: inline-block;">保底</span>
+                            {% endif %}
                         </div>
                     </td>
-                    <td style="vertical-align: middle;">
-                        <div>预测分数: {{ college.prediction_score }}</div>
-                        <div>分差: {{ college.score_diff }}</div>
-                    </td>
-                    <td style="vertical-align: middle;">
-                        <div>计划数: {{ college.plan_number }}</div>
-                        <div>学费: {{ college.min_tuition }}-{{ college.max_tuition }}元</div>
-                    </td>
-                    <td style="vertical-align: middle;">
+                    <td style="vertical-align: middle; border: 1px solid #ddd; padding: 6px; text-align: left;">
+                        <div>
+                            <strong>{{ college.college_name }}（{{ college.group_name }}）</strong>
+                        </div>
+                        <div style="margin-top: 2px; font-size: 8pt;">
+                            <strong>代号:</strong>{{college.uncode }}
+                        </div>
+                        <div style="margin-top: 2px; font-size: 8pt;">
+                            <span ><strong>性质:</strong>{{college.nature }}   类型:</strong>{{ college.school_type_text}}</span>
+                        </div>
+                        <div style="margin-top: 2px; font-size: 8pt;">
+                            <strong>学费:</strong>{{college.min_tuition }}-{{ college.max_tuition }}元
+                        </div>
+                        <div style="margin-top: 2px; font-size: 8pt;">
+                            <strong>属地:</strong>{{ college.area_name }}
+                        </div>
                         {% if college.tese_text %}
-                        {% for tese in college.tese_text %}
-                        <span class="badge">{{ tese }}</span>
-                        {% endfor %}
-                        {% endif %}
-                    </td>
-                    <td style="vertical-align: middle;">
-                        <ul class="specialty-list">
-                            {% for specialty in college.specialties %}
-                            <li>
-                                {{ specialty.specialty_name }}（ 预测: {{ specialty.prediction_score }}分）
-                            </li>
+                        <div style="margin-top: 2px; font-size: 8pt;">
+                            <strong>特色:</strong>
+                            {% for tese in college.tese_text %}
+                            <span
+                                style="background-color: #f2f2f2; padding: 0px 3px; border-radius: 2px; font-size: 7pt; margin-right: 2px; display: inline-block;">{{
+                                tese }}</span>
                             {% endfor %}
-                        </ul>
-                    </td>
-                    <td style="vertical-align: middle;">
-                        {% if college.category_id == 1 %}
-                        <span class="badge">冲刺</span>
-                        {% elif college.category_id == 2 %}
-                        <span class="badge">稳妥</span>
-                        {% elif college.category_id == 3 %}
-                        <span class="badge">保底</span>
+                        </div>
+                        {% endif %}
+                        {% if college.subject_requirements %}
+                        <div style="margin-top: 2px; font-size: 7pt;">
+                            <strong>必选:</strong>
+                            {% if college.subject_requirements.wu == 1 %}<span style="margin-right: 3px;">物理</span>{%
+                            endif %}
+                            {% if college.subject_requirements.hua == 1 %}<span style="margin-right: 3px;">化学</span>{%
+                            endif %}
+                            {% if college.subject_requirements.sheng == 1 %}<span style="margin-right: 3px;">生物</span>{%
+                            endif %}
+                            {% if college.subject_requirements.shi == 1 %}<span style="margin-right: 3px;">历史</span>{%
+                            endif %}
+                            {% if college.subject_requirements.di == 1 %}<span style="margin-right: 3px;">地理</span>{%
+                            endif %}
+                            {% if college.subject_requirements.zheng == 1 %}<span style="margin-right: 3px;">政治</span>{%
+                            endif %}
+                        </div>
                         {% endif %}
                     </td>
-                </tr>
-                <tr class="no-break">
-                    <td colspan="6" style="vertical-align: middle;">
-                        <strong>历年录取分数:</strong>
+                    <td
+                        style="text-align: center; vertical-align: middle; border: 1px solid #ddd; padding: 6px; font-size: 9pt;">
+                        <div><strong>招生:</strong><br>{{ college.plan_number }}人</div>
+                        <div style="margin-top: 2px;"><strong>扩招:</strong><br>{{ college.plan_increase }}人</div>
+                    </td>
+                    <td
+                        style="vertical-align: middle; border: 1px solid #ddd; padding: 6px; text-align: left; font-size: 8pt;">
+                        {% for specialty in college.specialties %}
+                        <div style="margin-bottom: 2px; ">
+                            {{specialty.specialty_index}}. {{ specialty.specialty_name }}（计划:{{ specialty.plan_number
+                            }}人/学费:{{ specialty.tuition }}元）
+                        </div>
+                        {% endfor %}
+                    </td>
+                    <td
+                        style="vertical-align: middle; border: 1px solid #ddd; padding: 6px; text-align: left; font-size: 8pt;">
                         {% if college.history %}
-                        <table class="history-table" style="text-align: center; margin: 0 auto;">
-                            <thead>
-                                <tr>
-                                    <th style="vertical-align: middle;">年份</th>
-                                    <th style="vertical-align: middle;">录取分</th>
-                                    <th style="vertical-align: middle;">省控线</th>
-                                    <th style="vertical-align: middle;">线差</th>
-                                    <th style="vertical-align: middle;">位次</th>
-                                    <th style="vertical-align: middle;">计划数</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for record in college.history %}
-                                <tr>
-                                    <td style="vertical-align: middle;">{{ record.year }}</td>
-                                    <td style="vertical-align: middle;">{{ record.admission_score }}</td>
-                                    <td style="vertical-align: middle;">{{ record.provincial_line }}</td>
-                                    <td style="vertical-align: middle;">{{ record.province_score_diff }}</td>
-                                    <td style="vertical-align: middle;">{{ record.rank }}</td>
-                                    <td style="vertical-align: middle;">{{ record.plan_number }}</td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+                        {% for record in college.history %}
+                        <div style="margin-bottom: 2px;">
+                            <strong>{{ record.year }}:</strong>
+                            <span style="display: inline-block; margin-right: 5px;">分数:{{ record.admission_score
+                                }}</span>
+                            <span style="display: inline-block; margin-right: 5px;">线差:{{ record.province_score_diff
+                                }}</span>
+                            <div style="margin-top: 1px;">
+                                <span style="display: inline-block; margin-right: 5px;">位次:{{ record.rank }}</span>
+                                <span style="display: inline-block;">计划:{{ record.plan_number }}</span>
+                            </div>
+                        </div>
+                        {% endfor %}
                         {% else %}
-                        <p>暂无历史数据</p>
+                        <div style="text-align: center;">暂无历史数据</div>
                         {% endif %}
+                    </td>
+                    <td style="text-align: center; vertical-align: middle; border: 1px solid #ddd; padding: 6px;">
+                        <strong>同意</strong>
                     </td>
                 </tr>
                 {% endfor %}

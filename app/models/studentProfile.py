@@ -26,7 +26,7 @@ class Student(Base):
     household_type = db.Column(db.String(20), comment='户籍类型') # 农村户口/城市户口
     student_type = db.Column(db.String(20), comment='考生类型') # a应届生/复读生
     # 新增政治面貌字段
-    political_status = db.Column(db.String(20), comment='政治面貌') # 团员/党员
+    political_status = db.Column(db.String(20), default='群众', comment='政治面貌') # 团员/党员/群众
     # 新增出生日期字段
     birth_date = db.Column(db.Date, comment='出生日期')
     
@@ -43,9 +43,9 @@ class Student(Base):
     # 身体情况 (身体情况部分)
     left_eye_vision = db.Column(db.String(20), comment='左眼视力情况')
     right_eye_vision = db.Column(db.String(20), comment='右眼视力情况')
-    color_vision = db.Column(db.String(20), comment='色觉情况') # 色盲/色弱/单色异常/正常
+    color_vision = db.Column(db.String(20), default='正常', comment='色觉情况') # 色盲/色弱/单色异常/正常
     # 新增嗅觉情况字段
-    smell_condition = db.Column(db.String(20), comment='嗅觉情况') # 异常/正常
+    smell_condition = db.Column(db.String(20), default='正常', comment='嗅觉情况') # 异常/正常
     height = db.Column(db.String(10), comment='身高(CM)')
     weight = db.Column(db.String(10), comment='体重(KG)')
     # 其他情况

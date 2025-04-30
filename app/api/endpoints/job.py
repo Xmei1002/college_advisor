@@ -8,7 +8,6 @@ from app.models.ceping_job_timu import CepingJobTimu
 from app.models.ceping_job_leixing import CepingJobLeixing
 from app.models.ceping_job_zhuanye import CepingJobZhuanye
 from app.extensions import db
-
 from app.services.ceping.pdf_service import PdfService
 from app.api.schemas.ceping import (
     JobQuestionSchema, 
@@ -17,6 +16,7 @@ from app.api.schemas.ceping import (
 )
 import json
 import time
+from app.models.studentProfile import Student
 
 job_bp = Blueprint(
     'job', 
@@ -28,7 +28,8 @@ job_bp = Blueprint(
 @job_bp.response(200, JobQuestionSchema(many=True))
 @api_error_handler
 def get_questions():
-    """获取职业兴趣测评题目
+    """
+        获取职业兴趣测评题目
     """
     # 不需要student_id也可以获取题目
     questions = CepingJobTimu.query.order_by(CepingJobTimu.tid).all()
@@ -209,7 +210,6 @@ def generate_report(student_id):
         return APIResponse.error("记录不存在", code=404)
     
     # 获取学生信息
-    from app.models.studentProfile import Student
     student = Student.query.filter_by(id=student_id).first()
     if not student:
         return APIResponse.error("学生信息不存在", code=404)

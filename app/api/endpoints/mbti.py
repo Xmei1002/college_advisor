@@ -15,6 +15,7 @@ from app.api.schemas.ceping import (
 import json
 import time
 from app.extensions import db
+from app.models.studentProfile import Student
 
 mbti_bp = Blueprint(
     'mbti', 
@@ -144,7 +145,7 @@ def get_result(student_id):
     # 查询答案记录
     answer = CepingMbtiAnswer.query.filter_by(student_id=student_id).first()
     if not answer:
-        return APIResponse.error("记录不存在", code=404)
+        return APIResponse.success(message="记录不存在", code=200)
     
     # 解析结果
     jieguo = json.loads(answer.jieguo)
@@ -204,10 +205,9 @@ def generate_report(student_id):
     # 查询答案记录
     answer = CepingMbtiAnswer.query.filter_by(student_id=student_id).first()
     if not answer:
-        return APIResponse.success(message="记录不存在", code=200)
+        return APIResponse.error("记录不存在", code=404)
     
     # 获取学生信息
-    from app.models.studentProfile import Student
     student = Student.query.filter_by(id=student_id).first()
     if not student:
         return APIResponse.error("学生信息不存在", code=404)

@@ -29,13 +29,6 @@ class CollegePreferenceBaseSchema(Schema):
     # 家庭背景
     family_background = fields.String(description="家庭背景，如农村家庭、城市家庭等")
 
-    @pre_load
-    def convert_empty_to_none(self, data, **kwargs):
-        for field in self.fields:
-            if field in data and data[field] == "":
-                data[field] = None
-        return data
-
 class CollegePreferenceStrategySchema(Schema):
     """填报策略Schema"""
     strategy = fields.String(required=True, description="填报策略")
