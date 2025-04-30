@@ -1,12 +1,11 @@
 # app/api/endpoints/volunteer_plan.py
-
 from flask import current_app,request 
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.utils.response import APIResponse
 from app.utils.decorators import api_error_handler
 from app.models.student_volunteer_plan import StudentVolunteerPlan
 from app.services.volunteer.plan_service import VolunteerPlanService, generate_complete_volunteer_plan
-from app.tasks.volunteer_tasks import generate_volunteer_plan_task
+from app.tasks.volunteer_tasks import generate_volunteer_plan_task,export_volunteer_plan_to_pdf_task
 from flask_smorest import Blueprint
 from app.api.schemas.volunteer_plan import (
     PlanHistoryResponseSchema, PlanDetailResponseSchema,GenerateAiPlanSchema,
@@ -23,6 +22,9 @@ import time
 from flask import send_file
 from app.services.volunteer.export import export_volunteer_plan_to_pdf
 from app.services.volunteer.volunteer_analysis_service import AIVolunteerAnalysisService
+import os
+import glob
+
 # 创建志愿方案蓝图
 volunteer_plan_bp = Blueprint(
     'volunteer_plan', 
@@ -320,7 +322,6 @@ def export_volunteer_plan_analysis_word(plan_id):
 @volunteer_plan_bp.route('/export_pdf/<int:plan_id>', methods=['GET'])
 @jwt_required()
 @api_error_handler
-@volunteer_plan_bp.doc(deprecated=True, description="该接口暂不可用")
 def export_volunteer_plan_pdf(plan_id):
     """
     导出志愿方案为PDF文件，包含封面(学生信息)、方案表和解析内容
@@ -384,37 +385,85 @@ def export_volunteer_plan_pdf(plan_id):
             code=500
         )   
 
+@volunteer_plan_bp.route('/export_pdf_async/<int:plan_id>', methods=['GET'])
+@jwt_required()
+@api_error_handler
+def export_volunteer_plan_pdf_async(plan_id):
+    """
+    异步导出志愿方案为PDF文件
+    
+    异步生成PDF文件，返回任务ID，客户端可以通过任务ID查询状态和获取文件
+    """
+    current_user_id = get_jwt_identity()
+    current_user = User.query.get_or_404(current_user_id)
+    
+    # 检查用户类型权限 - 只有规划师可以访问该接口
+    is_planner = current_user.user_type == User.USER_TYPE_PLANNER
+    if not is_planner:
+        return APIResponse.error("无权限访问该接口", code=403)
+    
+    plan = StudentVolunteerPlan.query.get(plan_id)
+    if not plan:
+        return APIResponse.error("志愿方案不存在", code=404)
+    
+    # 获取可选的模板名称
+    template_name = request.args.get('template', 'standard')
+    
+    # 启动异步任务
+    task = export_volunteer_plan_to_pdf_task.delay(plan_id, template_name)
+    
+    return APIResponse.success(
+        data={
+            'task_id': task.id,
+            'plan_id': plan_id,
+            'status': 'processing',
+            'message': '志愿方案PDF生成任务已启动'
+        },
+        message="异步PDF生成任务已启动",
+        code=202
+    )
 
-# @volunteer_plan_bp.route('/export_analysis_pdf/<int:plan_id>', methods=['GET'])
-# @jwt_required()
-# @api_error_handler
-# def export_volunteer_plan_analysis_pdf(plan_id):
-#     """导出志愿方案解析为PDF文件，最佳格式展示"""
+
+@volunteer_plan_bp.route('/download_latest_pdf/<int:plan_id>', methods=['GET'])
+@jwt_required()
+@api_error_handler
+def get_latest_volunteer_plan_pdf(plan_id):
+    """
+    获取指定志愿方案的最新PDF文件
     
-#     current_app.logger.info(f"开始导出志愿方案解析 {plan_id} 为PDF文件")
+    直接获取指定方案ID的最新生成的PDF文件，无需知道具体任务ID
+    """
+    current_user_id = get_jwt_identity()
+    current_user = User.query.get_or_404(current_user_id)
     
-#     result = VolunteerPlanService.export_volunteer_plan_analysis_to_pdf(plan_id)
+    # 检查用户类型权限 - 只有规划师可以访问该接口
+    is_planner = current_user.user_type == User.USER_TYPE_PLANNER
+    if not is_planner:
+        return APIResponse.error("无权限访问该接口", code=403)
     
-#     current_app.logger.info(f"导出PDF解析结果: {result}")
+    plan = StudentVolunteerPlan.query.get(plan_id)
+    if not plan:
+        return APIResponse.error("志愿方案不存在", code=404)
     
-#     if result['success']:
-#         return send_file(
-#             result['filepath'],
-#             as_attachment=True,
-#             download_name=result['filename'],
-#             mimetype='application/pdf'
-#         )
-#     elif result.get('word_file') and result['word_file'].get('success'):
-#         # 如果PDF失败但有Word文件作为备选
-#         return send_file(
-#             result['word_file']['filepath'],
-#             as_attachment=True,
-#             download_name=result['word_file']['filename'],
-#             mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-#         )
-#     else:
-#         return APIResponse.error(
-#             message=result.get('error', '导出志愿方案解析PDF失败'),
-#             code=500
-#         )
+    # 获取应用根目录
+    app_root = current_app.root_path
     
+    # PDF存储目录
+    export_dir = os.path.join(app_root, "static", "reports")
+    
+    # 查找匹配的文件
+    pattern = f"volunteer_plan_{plan_id}_*.pdf"
+    matching_files = glob.glob(os.path.join(export_dir, pattern))
+    
+    if not matching_files:
+        return APIResponse.error("未找到该志愿方案的PDF文件", code=404)
+    
+    # 按修改时间排序，获取最新的文件
+    latest_file = max(matching_files, key=os.path.getmtime)
+    
+    return send_file(
+        latest_file,
+        as_attachment=True,
+        download_name=os.path.basename(latest_file),
+        mimetype='application/pdf'
+    )

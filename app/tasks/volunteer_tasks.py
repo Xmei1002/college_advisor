@@ -10,7 +10,7 @@ from app.extensions import db
 from app.services.ai.llm_service import LLMService
 from app.services.volunteer.consultation_status_service import update_student_plan_status
 from app.services.chat.chat_service import ChatService
-
+from app.services.volunteer.export import export_volunteer_plan_to_pdf
 @celery.task(bind=True)
 def generate_volunteer_plan_task(self, student_id, planner_id, user_data_hash, is_first = False):
     """
@@ -247,5 +247,36 @@ def analyze_volunteer_plan_task(self, plan_id):
         return {
             'status': 'error',
             'message': f'整体志愿方案分析失败: {str(e)}',
+            'plan_id': plan_id
+        }
+    
+@celery.task(bind=True)
+def export_volunteer_plan_to_pdf_task(self, plan_id, template_name="standard"):
+    """
+    异步生成志愿方案PDF任务
+    
+    :param plan_id: 志愿方案ID
+    :param template_name: 模板名称，默认为standard
+    :return: 生成的PDF文件信息
+    """
+    task_id = self.request.id
+    current_app.logger.info(f"异步生成志愿方案PDF任务开始，任务ID: {task_id}")
+    
+    try:
+        # 调用实际的PDF生成函数
+        result = export_volunteer_plan_to_pdf(plan_id, template_name)
+        
+        return {
+            'status': 'success',
+            'message': '志愿方案PDF生成成功',
+            'plan_id': plan_id,
+            'file_info': result
+        }
+    
+    except Exception as e:
+        current_app.logger.error(f"异步生成志愿方案PDF失败: {str(e)}")
+        return {
+            'status': 'error',
+            'message': f'志愿方案PDF生成失败: {str(e)}',
             'plan_id': plan_id
         }
