@@ -35,7 +35,7 @@ volunteer_plan_bp = Blueprint(
 
 @volunteer_plan_bp.route('/generate-ai-plan', methods=['POST'])
 @volunteer_plan_bp.arguments(GenerateAiPlanSchema)
-@volunteer_plan_bp.response(202)
+@volunteer_plan_bp.response(200)
 @jwt_required()
 @api_error_handler
 def generate_ai_volunteer_plan(data):
@@ -75,7 +75,7 @@ def generate_ai_volunteer_plan(data):
     
     return APIResponse.success(
         message="志愿方案生成任务已启动",
-        code=202
+        code=200
     )
 
 @volunteer_plan_bp.route('/history/<int:student_id>', methods=['GET'])
@@ -420,7 +420,7 @@ def export_volunteer_plan_pdf_async(plan_id):
             'message': '志愿方案PDF生成任务已启动'
         },
         message="异步PDF生成任务已启动",
-        code=202
+        code=200
     )
 
 
@@ -456,7 +456,7 @@ def get_latest_volunteer_plan_pdf(plan_id):
     matching_files = glob.glob(os.path.join(export_dir, pattern))
     
     if not matching_files:
-        return APIResponse.error("未找到该志愿方案的PDF文件", code=404)
+        return APIResponse.success(message="未找到该志愿方案的PDF文件", code=204)
     
     # 按修改时间排序，获取最新的文件
     latest_file = max(matching_files, key=os.path.getmtime)
