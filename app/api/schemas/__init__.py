@@ -19,7 +19,8 @@ class PaginationSchema(Schema):
 
 # 发送验证码请求模式
 class SendVerificationSchema(Schema):
-    phone = fields.String(required=True, validate=validate.Regexp(r'^\d{11}$'), description="手机号码")
+    phone = fields.String(required=True, validate=validate.Regexp(r'^\d{11}$'), description="手机号码"),
+    # planner_id = fields.Integer(required=True, description="规划师ID")
 
 # 验证码校验模式
 class VerifyCodeSchema(Schema):

@@ -44,3 +44,6 @@ from app.models.ceping_job_weidu import CepingJobWeidu
 from app.models.ceping_mbti_answer import CepingMbtiAnswer
 from app.models.ceping_mbti_timu import CepingMbtiTimu
 from app.models.ceping_mbti_leixing import CepingMbtiLeixing
+
+from app.models.knowledge_items import KnowledgeItem
+from app.models.knowledge_directories import KnowledgeDirectory

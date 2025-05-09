@@ -17,6 +17,10 @@ from app.api.endpoints.config import config_bp  # 导入配置蓝图
 from app.api.endpoints.institution import institution_bp  # 导入机构蓝图
 from app.api.endpoints.mbti import mbti_bp  # 导入MBTI测评蓝图
 from app.api.endpoints.job import job_bp  # 导入职业兴趣测评蓝图
+from app.api.endpoints.knowledge_directory import knowledge_directory_bp
+from app.api.endpoints.knowledge_item import knowledge_item_bp
+from app.api.endpoints.upload import upload_bp
+
 # 创建主API蓝图
 api_bp = Blueprint('api', __name__)
 def register_blueprint(blueprint, url_prefix):
@@ -51,5 +55,8 @@ register_blueprint(config_bp, '/config')  # 注册配置蓝图
 register_blueprint(institution_bp, '/institutions')  # 注册机构蓝图
 register_blueprint(mbti_bp, '/mbti')  # 注册MBTI测评蓝图
 register_blueprint(job_bp, '/job')  # 注册职业兴趣测评蓝图
+register_blueprint(knowledge_directory_bp, '/knowledge/directories')
+register_blueprint(knowledge_item_bp, '/knowledge/items')
+register_blueprint(upload_bp, '/upload')
 
 

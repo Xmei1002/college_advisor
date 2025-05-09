@@ -8,6 +8,9 @@ from app.core.auth.verification import VerificationService
 from app.models.user import User
 from flask_smorest import Blueprint
 from app.utils.decorators import api_error_handler
+import pytz
+from datetime import datetime, timezone
+
 
 # 创建认证蓝图
 auth_bp = Blueprint(
@@ -32,9 +35,10 @@ def send_verification(data):
     向指定手机号发送注册验证码
     """
     phone = data['phone']
+    # planner_id = data['planner_id']
     
     # 检查手机号是否已注册
-    # user = User.query.filter_by(username=phone).first()
+    # user = User.query.filter_by(username=phone,planner_id=planner_id).first()
     # if user:
     #     return APIResponse.error("该手机号已注册", code=400)
     
@@ -71,23 +75,29 @@ def verify_code(data):
         return APIResponse.error("验证码错误或已过期", code=400)
     
     # 检查用户是否存在
-    user = User.query.filter_by(username=phone).first()
+    # user = User.query.filter(
+    #     User.username.like(f"%{phone}%"),
+    #     User.planner_id == planner_id
+    # ).first()
     
     # 用户不存在，创建新用户（注册）
-    if not user:
-        consultation_status = User.CONSULTATION_STATUS_PENDING  # 默认咨询状态为待定
-        user = AuthService.register_student(phone, '123456',consultation_status)
-        # 为新用户分配规划师
-        user.assign_planner(planner)
-        registration_message = "注册并登录成功"
-    else:
-        # 用户存在，检查状态
-        if user.status != User.USER_STATUS_ACTIVE:
-            return APIResponse.error("账号已被禁用，请联系管理员", code=403)
+    # if not user:
+    consultation_status = User.CONSULTATION_STATUS_PENDING  # 默认咨询状态为待定
+    # 获取当前时间的 Unix 时间戳（以秒为单位）
+    timestamp = int(datetime.now(pytz.utc).timestamp())
+
+    user = AuthService.register_student(phone+'s'+planner_id+'t'+ timestamp, '123456',consultation_status)
+    # 为新用户分配规划师
+    user.assign_planner(planner)
+    registration_message = "注册并登录成功"
+    # else:
+    #     # 用户存在，检查状态
+    #     if user.status != User.USER_STATUS_ACTIVE:
+    #         return APIResponse.error("账号已被禁用，请联系管理员", code=403)
         
-        # 为现有用户分配或更新规划师
-        user.assign_planner(planner)
-        registration_message = "登录成功"
+    #     # 为现有用户分配或更新规划师
+    #     user.assign_planner(planner)
+    #     registration_message = "登录成功"
     
     # 更新登录信息
     user.update_login_info(request.remote_addr)

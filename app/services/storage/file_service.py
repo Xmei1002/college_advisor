@@ -86,3 +86,61 @@ class FileService:
             # 如果url_for失败，回退到简单拼接
             base_url = current_app.config.get('BASE_URL', '')
             return f"{base_url}/static/{url_path}"
+        
+
+    # app/services/storage/file_service.py 
+    # 在现有文件中添加以下方法
+
+    # 添加图片类型验证
+    ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+    MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10MB
+
+    @staticmethod
+    def is_allowed_image(filename):
+        """检查是否为允许的图片格式"""
+        return '.' in filename and \
+            filename.rsplit('.', 1)[1].lower() in FileService.ALLOWED_IMAGE_EXTENSIONS
+
+    @staticmethod
+    def save_image(file, folder='images'):
+        """
+        保存图片文件，并验证文件类型
+        
+        :param file: 上传的图片文件对象
+        :param folder: 存储目录
+        :return: 字典，包含保存结果和文件信息
+        """
+        if not file:
+            return {'success': False, 'message': '没有找到文件'}
+            
+        # 检查文件类型
+        filename = secure_filename(file.filename)
+        if not FileService.is_allowed_image(filename):
+            return {'success': False, 'message': '不支持的图片格式'}
+        
+        # 检查文件大小
+        file.seek(0, os.SEEK_END)
+        file_size = file.tell()
+        file.seek(0)  # 重置文件指针
+        
+        if file_size > FileService.MAX_IMAGE_SIZE:
+            return {'success': False, 'message': f'图片大小超过限制(最大{FileService.MAX_IMAGE_SIZE/1024/1024}MB)'}
+        
+        # 保存文件
+        file_path = FileService.save_file(file, folder)
+        if not file_path:
+            return {'success': False, 'message': '保存图片失败'}
+        
+        # 获取图片URL
+        file_url = FileService.get_file_url(file_path)
+        
+        return {
+            'success': True,
+            'message': '图片上传成功',
+            'data': {
+                'file_path': file_path,
+                'file_url': file_url,
+                'file_size': file_size,
+                'file_type': os.path.splitext(filename)[1][1:].lower()
+            }
+        }
